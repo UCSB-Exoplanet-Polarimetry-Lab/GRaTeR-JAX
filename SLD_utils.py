@@ -5,6 +5,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 from interpolated_univariate_spline import InterpolatedUnivariateSpline
 from astropy.io import fits
+from pyklip import klip
 
 class Jax_class:
 
@@ -333,9 +334,12 @@ class EMP_PSF(Jax_class):
         fin_image = np.nan_to_num(cropped_image)
         fin_image = np.vectorize(safe_float32_conversion)(fin_image)
         return fin_image
+    
+    psf_hdu = fits.open("PSF/emp_psf.fits")
+    psf_data = psf_hdu[0].data
 
-    img = process_image(fits.open("PSF/emp_psf.fits")[0].data[0,:,:])
-
+    img = process_image(jnp.median(psf_data),axis=0)
+    
     #define model function and pass independant variables x and y as a list
     @classmethod
     @partial(jax.jit, static_argnums=(0))
