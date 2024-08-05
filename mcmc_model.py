@@ -18,8 +18,11 @@ class MCMC_model():
         else:
             return -np.inf
 
-    def _lnprob(self, theta):
-        lp = self._lnprior(theta)
+    def _lnprob(self, theta, prior_func = None):
+        if prior_func == None:
+            lp = self._lnprior(theta)
+        else:
+            lp = prior_func(self.theta_bounds, theta)
         if lp == -np.inf:
             return -np.inf
         return lp + self.fun(theta)
@@ -40,12 +43,18 @@ class MCMC_model():
         if (self.sampler == None):
             raise Exception("Need to run model first!")
         return self.sampler.flatchain[np.argmax(self.sampler.flatlnprobability)]
+    
+    def get_theta_median(self):
+        if (self.sampler == None):
+            raise Exception("Need to run model first!")
+        return np.median(self.sampler.flatchain, axis=0)
 
-    def show_corner_plot(self, labels, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84]):
+    def show_corner_plot(self, labels, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
+                            quiet = False):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
         fig = corner.corner(self.sampler.flatchain,truths=truths, show_titles=show_titles,labels=labels,
-                                plot_datapoints=plot_datapoints,quantiles=quantiles)
+                                plot_datapoints=plot_datapoints,quantiles=quantiles, quiet=quiet)
 
     def plot_results(self, model):
         if (self.sampler == None):
