@@ -336,9 +336,9 @@ class EMP_PSF(Jax_class):
         return fin_image
     
     psf_hdu = fits.open("PSF/emp_psf.fits")
-    psf_data = psf_hdu[0].data
+    psf_data = psf_hdu[0].data.astype(jnp.float32)
 
-    img = process_image(jnp.median(psf_data),axis=0)
+    img = process_image(jnp.median(psf_data,axis=0))
     
     #define model function and pass independant variables x and y as a list
     @classmethod
