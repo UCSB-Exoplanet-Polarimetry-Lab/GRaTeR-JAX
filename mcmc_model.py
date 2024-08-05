@@ -27,9 +27,16 @@ class MCMC_model():
             return -np.inf
         return lp + self.fun(theta)
 
-    def run(self, initial, nwalkers=500, niter = 500, burn_iter = 100, nconst = 1e-7):
+    def run(self, initial, nwalkers=500, niter = 500, burn_iter = 100, frac_ball_size = 0.1):
+        '''
+        frac_ball_size: the std of the random ball around the initial guess
+        '''
         ndim = len(initial)
-        p0 = [np.array(initial) + 1e-7 * np.random.randn(ndim) for i in range(nwalkers)]
+        p0 = [np.array(initial) + frac_ball_size*np.array(initial) * np.random.randn(ndim) for i in range(nwalkers)]
+
+        priors = [self._lnprior(p) for p in p0]
+        assert np.all(np.isfinite(priors)), "Initial positions are out of bounds"
+        
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self._lnprob)
         print("Running burn-in...")
         p0, _, _ = sampler.run_mcmc(p0, burn_iter)
