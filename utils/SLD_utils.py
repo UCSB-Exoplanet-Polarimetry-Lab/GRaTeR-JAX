@@ -194,38 +194,6 @@ class DustEllipticalDistribution2PowerLaws(Jax_class):
         vertical_density_term = jnp.exp(-jnp.power((jnp.abs(z)+1e-8)/(jnp.abs(den2+1e-8)), jnp.abs(distr["gamma"])+1e-8))
         return radial_density_term*vertical_density_term
     
-    '''@classmethod
-    @partial(jax.jit, static_argnums=(0,))
-    def density_cylindrical(cls, distr_params, r, costheta, z):
-        """ Returns the particle volume density at r, theta, z """
-        distr = cls.unpack_pars(distr_params)
-
-        radial_ratio = r * (1 - distr["e"] * costheta) / (distr["p"] + 1e-8)
-        jax.debug.print("radial_ratio: {}", jnp.sum(jnp.where(jnp.isnan(radial_ratio), 1, 0)))
-
-        den = (jnp.power(jnp.abs(radial_ratio) + 1e-8, -2 * distr["ain"] + 1e-8) +
-            jnp.power(jnp.abs(radial_ratio) + 1e-8, -2 * distr["aout"] + 1e-8))
-        jax.debug.print("den: {}", jnp.sum(jnp.where(jnp.isnan(den), 1, 0)))
-        
-        radial_density_term = jnp.sqrt(2. / den + 1e-8) * distr["dens_at_r0"]
-        jax.debug.print("radial_density_term (before): {}", jnp.sum(jnp.where(jnp.isnan(radial_density_term), 1, 0)))
-
-        radial_density_term = jnp.where(distr["pmin"] > 0, 
-                                        jnp.where(r * (1 - distr["e"] * costheta) / (distr["p"] + 1e-8) <= 1, 0., radial_density_term),
-                                        radial_density_term)
-        jax.debug.print("radial_density_term (after): {}", jnp.sum(jnp.where(jnp.isnan(radial_density_term), 1, 0)))
-
-        den2 = distr["ksi0"] * jnp.power(jnp.abs(radial_ratio + 1e-8), distr["beta"]) + 1e-8
-        jax.debug.print("den2: {}", den2)
-
-        vertical_density_term = jnp.exp(-jnp.power((jnp.abs(z) + 1e-8) / (jnp.abs(den2 + 1e-8)), jnp.abs(distr["gamma"]) + 1e-8))
-        jax.debug.print("vertical_density_term: {}", jnp.sum(jnp.where(jnp.isnan(vertical_density_term), 1, 0)))
-        
-        result = radial_density_term * vertical_density_term
-        jax.debug.print("result: {}", jnp.sum(jnp.where(jnp.isnan(result), 1, 0)))
-        
-        return result'''
-
 class HenyeyGreenstein_SPF(Jax_class):
     """
     Implementation of a scattering phase function with a single Henyey
@@ -369,7 +337,7 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
     @classmethod
     @partial(jax.jit, static_argnums=(0,))
     def unpack_pars(cls, p_arr):
-        """Helper function to unpack parameters"""
+        """Helper function to unpack parameters -- replaces Jax_class definition of this function to be specific for spline SPF"""
         return p_arr
 
     @classmethod
@@ -377,7 +345,11 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
     def pack_pars(cls, p_arr, knots=jnp.linspace(1, -1, 6)):
         """
         This function takes a array of (knots) values and converts them into an InterpolatedUnivariateSpline model.
-        Also has inclination bounds which help narrow the spline fit. Note: appears to duplicate functionality of init below?
+        Also has inclination bounds which help narrow the spline fit. 
+        
+        Note: appears to duplicate functionality of init below, but this is on purpose!
+        It's because this particular class is implemented through pytrees from jax scipy, 
+        so it's just wrapped to make it compatible with the structure of the other SPF functions
 
         Parameters
         ----------
