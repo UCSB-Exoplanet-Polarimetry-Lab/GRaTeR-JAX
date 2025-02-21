@@ -5,10 +5,41 @@ from SLD_utils import DustEllipticalDistribution2PowerLaws, DoubleHenyeyGreenste
 from functools import partial
 import jax.scipy.signal as jss
 
+## This file brings together the Scattered Light Disk models, dust distribution models, SPF models into one easier-to-use model function
+
 @partial(jax.jit, static_argnums=(0,1,4))
+
 def jax_model(DistrModel, FuncModel, disk_params, spf_params, PSFModel = None,
                   halfNbSlices=25, e=0., ksi0=3., gamma=2., beta=1.,
                   nx=140, ny=140, pxInArcsec=0.01414, distance=50.):
+    """Basic GRaTer-JAX model (?)
+    
+    Parameters
+    __________
+    DistrModel : DustEllipticalDistribution2PowerLaws  
+        dust distributon model
+    FuncModel : class object
+        your choice of SPF model (HG, double HG, spline)
+    disk_params : dict
+        parameters for your disk model
+    spf_params : dict
+        parameters for your SPF
+    PSFModel : class object, optional
+        your choice of PSF model, defaults to None
+    halfNbSlices : int, optional
+    e : float, optional
+    ksi0 : float, optional
+    gamma : float, optional
+    beta : float, optional
+    nx : int, optional
+    ny : int, optional
+    pxInArcsec : float, optional
+    distance : float, optional
+
+    Returns
+    __________
+    flux scaled scattered light image, array
+    """
 
     distr_params = DistrModel.init(accuracy=5.e-3, ain=disk_params['alpha_in'], aout=disk_params['alpha_out'], a=disk_params['sma'],
                                    e=e, ksi0=ksi0, gamma=gamma, beta=beta, amin=0., dens_at_r0=1.)
@@ -48,7 +79,35 @@ def jax_model(DistrModel, FuncModel, disk_params, spf_params, PSFModel = None,
 def jax_model_1d(DistrModel, FuncModel, disk_params, spf_params, flux_scaling, PSFModel = None,
                 halfNbSlices=25, ksi0=3., gamma=2., beta=1.,
                 nx=140, ny=140, pxInArcsec=0.01414, distance=50.):
+    """GRaTer-JAX model with a_in, a_out, sma, inclination, and PA as free parameters
+    
+    Parameters
+    __________
+    DistrModel : DustEllipticalDistribution2PowerLaws  
+        dust distributon model
+    FuncModel : class object
+        your choice of SPF model (HG, double HG, spline)
+    disk_params : dict
+        parameters for your disk model
+    spf_params : dict
+        parameters for your SPF
+    flux_scaling : float
+        flux scaling factor
+    PSFModel : class object, optional
+        your choice of PSF model, defaults to None
+    halfNbSlices : int, optional
+    ksi0 : float, optional
+    gamma : float, optional
+    beta : float, optional
+    nx : int, optional
+    ny : int, optional
+    pxInArcsec : float, optional
+    distance : float, optional
 
+    Returns
+    __________
+    flux scaled scattered light image, array
+    """
     distr_params = DistrModel.init(accuracy=5.e-3, ain=disk_params[0], aout=disk_params[1], a=disk_params[2],
                                    e=0., ksi0=ksi0, gamma=gamma, beta=beta, amin=0., dens_at_r0=1.)
     disk_params_jax = ScatteredLightDisk.init(distr_params, disk_params[3], disk_params[4],
@@ -87,7 +146,35 @@ def jax_model_1d(DistrModel, FuncModel, disk_params, spf_params, flux_scaling, P
 def jax_model_all_1d(DistrModel, FuncModel, disk_params, spf_params, flux_scaling,
                      PSFModel = None, halfNbSlices=25, ksi0=3., gamma=2., beta=1.,
                     nx=140, ny=140, pxInArcsec=0.01414, distance=50.):
+    """GRaTer-JAX model with a_in, a_out, sma, inclination, and PA as free parameters
+    
+    Parameters
+    __________
+    DistrModel : DustEllipticalDistribution2PowerLaws  
+        dust distributon model
+    FuncModel : class object
+        your choice of SPF model (HG, double HG, spline)
+    disk_params : dict
+        parameters for your disk model
+    spf_params : dict
+        parameters for your SPF
+    flux_scaling : float
+        flux scaling factor
+    PSFModel : class object, optional
+        your choice of PSF model, defaults to None
+    halfNbSlices : int, optional
+    ksi0 : float, optional
+    gamma : float, optional
+    beta : float, optional
+    nx : int, optional
+    ny : int, optional
+    pxInArcsec : float, optional
+    distance : float, optional
 
+    Returns
+    __________
+    flux scaled scattered light image, array
+    """
     distr_params = DistrModel.init(accuracy=5.e-3, ain=disk_params[0], aout=disk_params[1], a=disk_params[2],
                                    e=0., ksi0=ksi0, gamma=gamma, beta=beta, amin=0., dens_at_r0=1.)
     disk_params_jax = ScatteredLightDisk.init(distr_params, disk_params[3], disk_params[4],
@@ -123,7 +210,36 @@ def jax_model_all_1d(DistrModel, FuncModel, disk_params, spf_params, flux_scalin
 def jax_model_spline(DistrModel, FuncModel, disk_params, spf_params, PSFModel = None,
                   halfNbSlices=25, ksi0=3., gamma=2., beta=1.,
                   nx=140, ny=140, pxInArcsec=0.01414, distance=50., knots=jnp.linspace(1,-1,6)):
+    """GRaTer-JAX model with spline SPF
+    
+    Parameters
+    __________
+    DistrModel : DustEllipticalDistribution2PowerLaws  
+        dust distributon model
+    FuncModel : class object
+        your choice of SPF model (HG, double HG, spline)
+    disk_params : dict
+        parameters for your disk model
+    spf_params : dict
+        parameters for your SPF
+    flux_scaling : float
+        flux scaling factor
+    PSFModel : class object, optional
+        your choice of PSF model, defaults to None
+    halfNbSlices : int, optional
+    ksi0 : float, optional
+    gamma : float, optional
+    beta : float, optional
+    nx : int, optional
+    ny : int, optional
+    pxInArcsec : float, optional
+    distance : float, optional
+    knots: array, optional
 
+    Returns
+    __________
+    flux scaled scattered light image, array
+    """
     distr_params = DistrModel.init(accuracy=5.e-3, ain=disk_params['alpha_in'], aout=disk_params['alpha_out'], a=disk_params['sma'],
                                    e=0., ksi0=ksi0, gamma=gamma, beta=beta, amin=0., dens_at_r0=1.)
     disk_params_jax = ScatteredLightDisk.init(distr_params, disk_params['inclination'], disk_params['position_angle'],
@@ -163,7 +279,35 @@ def jax_model_all_1d_cent(DistrModel, FuncModel, xc, yc, disk_params, spf_params
                      PSFModel = None, halfNbSlices=25, ksi0=3., gamma=2., beta=1.,
                      nx=140, ny=140,
                     pxInArcsec=0.01414, distance=50.):
+    """GRaTer-JAX model with free parameters a_in, a_out, sma, inclination, PA, xc, yc
+    
+    Parameters
+    __________
+    DistrModel : DustEllipticalDistribution2PowerLaws  
+        dust distributon model
+    FuncModel : class object
+        your choice of SPF model (HG, double HG, spline)
+    disk_params : dict
+        parameters for your disk model
+    spf_params : dict
+        parameters for your SPF
+    flux_scaling : float
+        flux scaling factor
+    PSFModel : class object, optional
+        your choice of PSF model, defaults to None
+    halfNbSlices : int, optional
+    ksi0 : float, optional
+    gamma : float, optional
+    beta : float, optional
+    nx : int, optional
+    ny : int, optional
+    pxInArcsec : float, optional
+    distance : float, optional
 
+    Returns
+    __________
+    flux scaled scattered light image, array
+    """
     distr_params = DistrModel.init(accuracy=5.e-3, ain=disk_params[0], aout=disk_params[1], a=disk_params[2],
                                    e=0., ksi0=ksi0, gamma=gamma, beta=beta, amin=0., dens_at_r0=1.)
     disk_params_jax = ScatteredLightDisk.init(distr_params, disk_params[3], disk_params[4],
@@ -205,7 +349,32 @@ def jax_model_all_1d_cent(DistrModel, FuncModel, xc, yc, disk_params, spf_params
 @partial(jax.jit, static_argnums=(0,1,5))
 def jax_model_all_1d_full(DistrModel, FuncModel, disk_params, spf_params, flux_scaling,
                      PSFModel = None, halfNbSlices=25, nx=140, ny=140, pxInArcsec=0.01414, distance=50.):
+    """GRaTer-JAX model with free parameters a_in, a_out, sma, inclination, PA, xc, yc, e, omega
+    
+    Parameters
+    __________
+    DistrModel : DustEllipticalDistribution2PowerLaws  
+        dust distributon model
+    FuncModel : class object
+        your choice of SPF model (HG, double HG, spline)
+    disk_params : dict
+        parameters for your disk model
+    spf_params : dict
+        parameters for your SPF
+    flux_scaling : float
+        flux scaling factor
+    PSFModel : class object, optional
+        your choice of PSF model, defaults to None
+    halfNbSlices : int, optional
+    nx : int, optional
+    ny : int, optional
+    pxInArcsec : float, optional
+    distance : float, optional
 
+    Returns
+    __________
+    flux scaled scattered light image, array
+    """
     distr_params = DistrModel.init(accuracy=5.e-3, ain=disk_params[0], aout=disk_params[1], a=disk_params[2],
                                    e=disk_params[7], ksi0=3, gamma=2, beta=1, amin=0, dens_at_r0=1.)
     disk_params_jax = ScatteredLightDisk.init(distr_params, disk_params[3], disk_params[4],
