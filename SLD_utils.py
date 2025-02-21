@@ -93,21 +93,21 @@ class DustEllipticalDistribution2PowerLaws(Jax_class):
         accuracy : float, optional
             cutoff for dust density distribution as a fraction of the peak density in the midplane (default 5e-3)
         ain : float, optional
-            inner power law exponent (default 5)
+            inner power law exponent. must be positive (default 5)
         aout : float, optional
-            outer power law exponent (default 5)
+            outer power law exponent. must be negative (default -5)
         a : float, optional
-            UNKNOWN
+            disk reference radius in au as defined in VIP https://vip.readthedocs.io/en/latest/tutorials/05B_fm_disks.html (default 60)
         e : float, optional
             eccentricity, 0 < e < 1 (default 0)
         ksi0 : float, optional
-            normalized disk height when r = r0 (default 1)
+            scale height in au at the reference radius (default 1)
         gamma : float, optional
-            UNKNOWN
+            exponential decay exponent for vertical profile (2 = Gaussian, 1 = exponential profile, default 2)
         beta : float, optional
-            vertical scale height exponent (default 1)
+            flaring coefficient in scale height (0 = no flaring, 1 = linear flaring, default 1)
         amin : float, optional
-            UNKNOWN
+            minimum semi-major axis; dust density is 0 below this value (default 0)
         dens_at_r0 : float, optional
             density at r0 (default 1)
         """
@@ -137,7 +137,7 @@ class DustEllipticalDistribution2PowerLaws(Jax_class):
         p_dict["aout"] = aout
         p_dict["a"] = a
         p_dict["e"] = e
-        p_dict["p"] = p_dict["a"]*(1-p_dict["e"]**2) # WHAT IS THIS
+        p_dict["p"] = p_dict["a"]*(1-p_dict["e"]**2) # ellipse parameter p (see VIP documentation)
         p_dict["amin"] = amin
         # we assume the inner hole is also elliptic (convention)
         p_dict["pmin"] = p_dict["amin"]*(1-p_dict["e"]**2) # WHAT IS THIS
@@ -305,7 +305,7 @@ class DoubleHenyeyGreenstein_SPF(Jax_class):
 
         Parameters
         ----------
-        func_params :  dictionary containing the key "g" (float)
+        func_params :  dictionary containing the keys "g1" (float), "g2" (float), "weight" (float)
             g is the Heyney Greenstein coefficient and should be between -1
             (backward scattering) and 1 (forward scattering) for both phase functions, as well as the weighting factor
 
@@ -377,14 +377,14 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
     def pack_pars(cls, p_arr, knots=jnp.linspace(1, -1, 6)):
         """
         This function takes a array of (knots) values and converts them into an InterpolatedUnivariateSpline model.
-        Also has inclination bounds which help narrow the spline fit
+        Also has inclination bounds which help narrow the spline fit. Note: appears to duplicate functionality of init below?
 
         Parameters
         ----------
         p_arr : array
-            input parameters as defined in the class constructor
+            input parameters as defined in the class constructor; y values for knots
         knots : array
-            y values for the desired knots
+            x values for knots
 
         Returns
         ----------
@@ -402,9 +402,9 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         Parameters
         ----------
         p_arr : array
-            input parameters as defined in the class constructor
+            input parameters as defined in the class constructor; y values for knots
         knots : array
-            y values for the desired knots
+            x values for knots
 
         Returns
         ----------
