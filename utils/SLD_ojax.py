@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 """
-Class definition for ScatteredLightDisk, Dust_distribution and Phase_function
+Class definition for ScatteredLightDisk -- Dust_distribution and Phase_function are in SLD_utils
 
 .. [AUG99]
    | Augereau et al. 1999
@@ -46,8 +46,9 @@ class ScatteredLightDisk(Jax_class):
 
     @classmethod
     @partial(jax.jit, static_argnums=(0,))
-    def init(cls, distr_params, inc, pa, ain, aout, sma, nx=200, ny=200, distance=50., omega=0., pxInArcsec=0.01225, xdo=0., ydo=0.):
 
+    def init(cls, distr_params, inc, pa, ain, aout, sma, nx=200, ny=200, distance=50., omega=0., pxInArcsec=0.01225, xdo=0., ydo=0.):
+        """Initializes ScatteredLightDisk with given parameters; most are defined below in comments"""
         p_dict = {}
 
         p_dict["nx"] = nx    # number of pixels along the x axis of the image
@@ -56,13 +57,10 @@ class ScatteredLightDisk(Jax_class):
         p_dict["omega"] = omega
 
         p_dict["pxInArcsec"] = pxInArcsec  # pixel field of view in arcsec/px
-        p_dict["pxInAU"] = p_dict["pxInArcsec"]*p_dict["distance"]     # 1 pixel in AU
-        # disk offset along the x-axis in the disk frame (semi-major axis), AU
-        p_dict["xdo"] = xdo
-        # disk offset along the y-axis in the disk frame (semi-minor axis), AU
-        p_dict["ydo"] = ydo
-        p_dict["rmin"] = jnp.sqrt(p_dict["xdo"]**2+p_dict["ydo"]**2)+p_dict["pxInAU"]
-        # star center along the y- and x-axis, in pixels
+        p_dict["pxInAU"] = p_dict["pxInArcsec"]*p_dict["distance"] # 1 pixel in AU
+        p_dict["xdo"] = xdo # disk offset along the x-axis in the disk frame (semi-major axis), AU
+        p_dict["ydo"] = ydo # disk offset along the y-axis in the disk frame (semi-minor axis), AU
+        p_dict["rmin"] = jnp.sqrt(p_dict["xdo"]**2+p_dict["ydo"]**2)+p_dict["pxInAU"] # star center along the y- and x-axis, in pixels
 
         p_dict["itilt"] = inc  # inclination wrt the line of sight in deg
         p_dict["cosi"] = jnp.cos(jnp.deg2rad(p_dict["itilt"]))
@@ -89,8 +87,35 @@ class ScatteredLightDisk(Jax_class):
 
         Parameters
         ----------
+        disk_params : dict
+            dictionary of ScatteredLightDisk model parameters
+        distr_params : dict
+            dictionary of dust distribution parameters
+        distr_cls : DustEllipticalDistribution2PowerLaws
+            dust distribution class
+        phase_func_params : dict
+            phase function parameters for your chosen type of SPF
+        phase_func_cls : class
+            your choice of phase function class (HG, Double HG, Spline) from SLD_utils
+        x_vector : 
+            UNKNOWN
+        y_vector :
+            UNKNOWN
+        scattered_light_map :
+            UNKNOWN
+        image :
+            UNKNOWN
+        limage : 
+            UNKNOWN
+        tmp :
+            UNKNOWN
         halfNbSlices : integer
             half number of distances along the line of sight l
+
+        Returns
+        ----------
+        scattered_light_map : array
+            model disk image
         """
 
         disk = cls.unpack_pars(disk_params)
