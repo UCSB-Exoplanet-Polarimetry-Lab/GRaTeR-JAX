@@ -169,14 +169,14 @@ class ScatteredLightDisk(Jax_class):
             x_disk in AU
         y_vector : array
             y_disk in AU
-        scattered_light_map :
-            UNKNOWN
-        image :
-            UNKNOWN
-        limage : 
-            UNKNOWN
-        tmp :
-            UNKNOWN
+        scattered_light_map : jax array
+            array of zeros with size nx, ny; exists because jax requires traced values
+        image : jax array
+            array of zeros with size nx, ny; exists because jax requires traced values
+        limage : jax array
+            array of zeros with size 2*halfNbSlices-1, nx, ny; exists because jax requires traced values
+        tmp : jax array
+            array of values 0 to halfNbSlices; exists because jax requires traced values
         halfNbSlices : integer
             half number of distances along the line of sight l
 
