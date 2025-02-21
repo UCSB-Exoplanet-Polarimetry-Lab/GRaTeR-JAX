@@ -17,15 +17,17 @@ def jax_model(DistrModel, FuncModel, disk_params, spf_params, PSFModel = None,
     Parameters
     __________
     DistrModel : DustEllipticalDistribution2PowerLaws  
-        dust distributon model
+        dust distributon model; only two power law fit is implemented
     FuncModel : class object
-        your choice of SPF model (HG, double HG, spline)
+        your choice of SPF model (HenyeyGreenstein_SPF, DoubleHenyeyGreenstein_SPF, InterpolatedUnivariateSpline_SPF)
     disk_params : dict
         parameters for your disk model
     spf_params : dict
-        parameters for your SPF
+        if single HG: g (float)
+        if double HG: g1 (float), g2 (float), weight (float)
+        if spline: 
     PSFModel : class object, optional
-        your choice of PSF model, defaults to None
+        your choice of PSF model (GAUSSIAN_PSF or EMP_PSF), defaults to None
     halfNbSlices : int, optional
     e : float, optional
     ksi0 : float, optional
