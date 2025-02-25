@@ -6,8 +6,10 @@ import matplotlib.pyplot as plt
 from interpolated_univariate_spline import InterpolatedUnivariateSpline
 from astropy.io import fits
 
+# This file contains the Dust Distribution models, SPF models, and the helper Jax_class that makes everything run
+
 class Jax_class:
-    """Helper functions for JAX-related operations (particularly parameter array handling)
+    """Helper functions for JAX-related operations
     
     Methods
     ----------
@@ -354,9 +356,9 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         Parameters
         ----------
         p_arr : array
-            input parameters as defined in the class constructor; y values for knots
-        knots : array
-            x values for knots
+            input parameters as defined in the class constructor; y values for knots and should be same length array as knots
+        knots : jax array
+            x values for knots; nominally a jax array of format jnp.linspace(1,-1,n) where n is the desired number of knots
 
         Returns
         ----------
@@ -374,9 +376,9 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         Parameters
         ----------
         p_arr : array
-            input parameters as defined in the class constructor; y values for knots
-        knots : array
-            x values for knots
+            input parameters as defined in the class constructor; y values for knots and should be same length array as knots
+        knots : jax array
+            x values for knots; nominally a jax array of format jnp.linspace(1,-1,n) where n is the desired number of knots
 
         Returns
         ----------
@@ -426,20 +428,20 @@ class GAUSSIAN_PSF(Jax_class):
 
         Parameters
         ----------
-        pos :
-            UNKNOWN
+        pos : numpy meshgrid
+            x and y coordinates over which the psf should be evaluated
         FWHM : float, optional
-            full width at half maximum
+            full width at half maximum (default 3)
         xo : float, optional
-            UNKNOWN
+            x offset shift, redundant with "offset" (default 0)
         yo : float, optional
-            UNKNOWN
+            y offset shift, redundant with "offset" (default 0)
         theta : float, optional
-            UNKNOWN
+            angle to rotate output PSF; for axisymmetric, theta = 0
         offset : float, optional
-            UNKNOWN
+            xy offset, redundant with xo and yo
         amplitude : float, optional
-            UNKNOWN
+            amplitude of the gaussian PSF (default 1)
 
         Returns
         ----------
@@ -469,7 +471,7 @@ class EMP_PSF(Jax_class):
         Parameters
         ----------
         image : array-like
-            the input image from which to generate the empirical PSF; note currently crops image with hardcoded values
+            the input image from which to generate the empirical PSF; note: currently crops image with hardcoded values
         scale_factor : float, optional
             factor by which to scale the input image
         offset : float, optional
@@ -501,8 +503,8 @@ class EMP_PSF(Jax_class):
 
         Parameters
         ----------
-        pos :
-            UNKNOWN
+        pos : numpy meshgrid
+            x and y coordinates over which the psf should be evaluated
 
         Returns
         ----------

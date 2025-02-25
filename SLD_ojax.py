@@ -46,7 +46,6 @@ class ScatteredLightDisk(Jax_class):
 
     @classmethod
     @partial(jax.jit, static_argnums=(0,))
-
     def init(cls, distr_params, inc, pa, ain, aout, sma, nx=200, ny=200, distance=50., omega=0., pxInArcsec=0.01225, xdo=0., ydo=0.):
         """Initializes ScatteredLightDisk with given parameters
         
