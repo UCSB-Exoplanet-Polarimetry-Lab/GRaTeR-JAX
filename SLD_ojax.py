@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 """
-Class definition for ScatteredLightDisk, Dust_distribution and Phase_function
+Class definition for ScatteredLightDisk -- Dust_distribution and Phase_function are in SLD_utils
 
 .. [AUG99]
    | Augereau et al. 1999
@@ -47,7 +47,56 @@ class ScatteredLightDisk(Jax_class):
     @classmethod
     @partial(jax.jit, static_argnums=(0,))
     def init(cls, distr_params, inc, pa, ain, aout, sma, nx=200, ny=200, distance=50., omega=0., pxInArcsec=0.01225, xdo=0., ydo=0.):
-
+        """Initializes ScatteredLightDisk with given parameters
+        
+        Parameters
+        ----------
+        distr_params : dict
+            Parameters describing the dust density distribution function
+            to be implemented. Currently, only a two power law distribution is implemented 
+            with the following parameters:
+                a : float
+                    reference radius in au (default 40)
+                ksi0 : float
+                    scale height in au at the reference radius (default 1 a.u.)
+                gamma : float
+                    exponent (2=gaussian,1=exponential profile, default 2)
+                beta : float
+                    flaring index (0=no flaring, 1=linear flaring, default 1)
+                ain : float
+                    slope of the power-low distribution in the inner disk. It
+                    must be positive (default 5)
+                aout : float
+                    slope of the power-low distribution in the outer disk. It
+                    must be negative (default -5)
+                e : float
+                    eccentricity (default 0)
+                amin: float
+                    minimim semi-major axis: the dust density is 0 below this
+                    value (default 0)
+        nx : int
+            number of pixels along the x axis of the image (default 200)
+        ny : int
+            number of pixels along the y axis of the image (default 200)
+        distance : float
+            distance to the star in pc (default 70.)
+        inc : float
+            inclination wrt the line of sight in degrees (0 means pole-on,
+            90 means edge-on, default 60 degrees)
+        omega : float
+            argument of the pericenter in degrees (0 by default)
+        pxInArcsec : float
+            pixel field of view in arcsec/px (default the SPHERE pixel
+            scale 0.01225 arcsec/px)
+        pa : float
+            position angle of the disc in degrees (default 0 degrees, e.g. North)
+        xdo : float
+            disk offset along the x-axis in the disk frame (=semi-major axis),
+            in a.u. (default 0)
+        ydo : float
+            disk offset along the y-axis in the disk frame (=semi-minor axis),
+            in a.u. (default 0)
+            """
         p_dict = {}
 
         p_dict["nx"] = nx    # number of pixels along the x axis of the image
@@ -56,13 +105,10 @@ class ScatteredLightDisk(Jax_class):
         p_dict["omega"] = omega
 
         p_dict["pxInArcsec"] = pxInArcsec  # pixel field of view in arcsec/px
-        p_dict["pxInAU"] = p_dict["pxInArcsec"]*p_dict["distance"]     # 1 pixel in AU
-        # disk offset along the x-axis in the disk frame (semi-major axis), AU
-        p_dict["xdo"] = xdo
-        # disk offset along the y-axis in the disk frame (semi-minor axis), AU
-        p_dict["ydo"] = ydo
-        p_dict["rmin"] = jnp.sqrt(p_dict["xdo"]**2+p_dict["ydo"]**2)+p_dict["pxInAU"]
-        # star center along the y- and x-axis, in pixels
+        p_dict["pxInAU"] = p_dict["pxInArcsec"]*p_dict["distance"] # 1 pixel in AU
+        p_dict["xdo"] = xdo # disk offset along the x-axis in the disk frame (semi-major axis), AU
+        p_dict["ydo"] = ydo # disk offset along the y-axis in the disk frame (semi-minor axis), AU
+        p_dict["rmin"] = jnp.sqrt(p_dict["xdo"]**2+p_dict["ydo"]**2)+p_dict["pxInAU"] # star center along the y- and x-axis, in pixels
 
         p_dict["itilt"] = inc  # inclination wrt the line of sight in deg
         p_dict["cosi"] = jnp.cos(jnp.deg2rad(p_dict["itilt"]))
@@ -74,7 +120,7 @@ class ScatteredLightDisk(Jax_class):
 
         p_dict["itilt"] = jnp.where(jnp.abs(jnp.mod(p_dict["itilt"], 180)-90) < jnp.abs(
                 jnp.mod(distr_params[16], 180)-90),
-                distr_params[16], p_dict["itilt"])
+                distr_params[16], p_dict["itilt"]) 
         
         return cls.pack_pars(p_dict)
         
@@ -89,8 +135,54 @@ class ScatteredLightDisk(Jax_class):
 
         Parameters
         ----------
+        disk_params : dict
+            dictionary of ScatteredLightDisk model parameters
+        distr_params : dict
+            dictionary of dust distribution parameters as follows:
+                a : float
+                    reference radius in au (default 40)
+                ksi0 : float
+                    scale height in au at the reference radius (default 1 a.u.)
+                gamma : float
+                    exponent (2=gaussian,1=exponential profile, default 2)
+                beta : float
+                    flaring index (0=no flaring, 1=linear flaring, default 1)
+                ain : float
+                    slope of the power-low distribution in the inner disk. It
+                    must be positive (default 5)
+                aout : float
+                    slope of the power-low distribution in the outer disk. It
+                    must be negative (default -5)
+                e : float
+                    eccentricity (default 0)
+                amin: float
+                    minimim semi-major axis: the dust density is 0 below this
+                    value (default 0)
+        distr_cls : DustEllipticalDistribution2PowerLaws
+            dust distribution class; only two power law distribution is implemented
+        phase_func_params : dict
+            phase function parameters for your chosen type of SPF (g if single HG, g1/g2/weight if double HG, knots if spline)
+        phase_func_cls : class
+            your choice of phase function class (HG, Double HG, Spline) from SLD_utils
+        x_vector : array
+            x_disk in AU
+        y_vector : array
+            y_disk in AU
+        scattered_light_map : jax array
+            array of zeros with size nx, ny; exists because jax requires traced values
+        image : jax array
+            array of zeros with size nx, ny; exists because jax requires traced values
+        limage : jax array
+            array of zeros with size 2*halfNbSlices-1, nx, ny; exists because jax requires traced values
+        tmp : jax array
+            array of values 0 to halfNbSlices; exists because jax requires traced values
         halfNbSlices : integer
             half number of distances along the line of sight l
+
+        Returns
+        ----------
+        scattered_light_map : array
+            model disk image
         """
 
         disk = cls.unpack_pars(disk_params)
