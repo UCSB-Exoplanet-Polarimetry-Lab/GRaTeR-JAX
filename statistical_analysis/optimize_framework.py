@@ -2,12 +2,14 @@ import jax
 import jax.numpy as jnp
 from utils.SLD_utils import *
 from scipy.optimize import minimize
+from utils.
 from utils.mcmc_model import MCMC_model
 from utils.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood
 
 # Built for new objective function
 class Optimizer:
-    def __init__(self, disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel, **kwargs):
+    def __init__(self, disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel,
+                 stellar_psf_model = L, stellar_weights = , **kwargs):
         self.disk_params = disk_params
         self.spf_params = spf_params
         self.psf_params = psf_params

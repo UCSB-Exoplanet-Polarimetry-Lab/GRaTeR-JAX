@@ -126,6 +126,7 @@ class DustEllipticalDistribution2PowerLaws(Jax_class):
         vertical_density_term = jnp.exp(-jnp.power((jnp.abs(z)+1e-8)/(jnp.abs(den2+1e-8)), jnp.abs(distr["gamma"])+1e-8))
         return radial_density_term*vertical_density_term
 
+### SPF Classes
 class HenyeyGreenstein_SPF(Jax_class):
     """
     Implementation of a scattering phase function with a single Henyey
@@ -269,13 +270,14 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         """
         
         return spline_model(cos_phi)
-    
+  
 # Uses 5 knots by default (1 knot is added at (cos(90 degrees), 1))
 # Values must be cos(phi) not phi
 class FixedInterpolatedUnivariateSpline_SPF(InterpolatedUnivariateSpline_SPF):
     """
     Implementation of a spline scattering phase function. Uses 6 knots by default, takes knot y values as parameters.
-    Locations are fixed to the given knots, pack_pars and init both return the spline model itself
+    Locations are fixed to the given knots, pack_pars and init both return the spline model itself. You must input
+    an even amount of knots as an odd number conflicts with the fixed point.
     """
 
     params = {'low_bound': -1, 'up_bound': 1, 'num_knots': 6, 'knot_values': jnp.ones(6)}
@@ -334,7 +336,7 @@ class FixedInterpolatedUnivariateSpline_SPF(InterpolatedUnivariateSpline_SPF):
         
         return spline_model(cos_phi)
     
-
+### PSF Classes
 class GAUSSIAN_PSF(Jax_class):
 
     params = {'FWHM': 3., 'xo': 0., 'yo': 0., 'theta': 0., 'offset': 0., 'amplitude': 1.}

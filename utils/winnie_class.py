@@ -8,7 +8,6 @@ import jax
 from jax import vmap
 from jax import numpy as jnp
 from jax.tree_util import register_pytree_node_class
-from jax.tree_util import register_pytree_node_class
 from jax.image import resize
 import jax.lax as lax
 
