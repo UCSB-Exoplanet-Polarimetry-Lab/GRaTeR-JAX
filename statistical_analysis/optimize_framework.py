@@ -34,7 +34,7 @@ class Optimizer:
         return log_likelihood(self.model(), target_image, err_map)
 
     def scipy_optimize(self, fit_keys, target_image, err_map,
-                       disp_opt=False, disp_soln=False, iters=500, grad=False, **kwargs):
+                       disp_opt=False, disp_soln=False, iters=500, grad=False, method=None, **kwargs):
 
         def expand(x):
             new_list = []
@@ -66,7 +66,7 @@ class Optimizer:
                 fit_keys.pop(key)
 
         init_x = np.concatenate([np.atleast_1d(x) for x in param_list])
-        soln = minimize(llp, init_x, options={'disp': True, 'max_itr': 500})
+        soln = minimize(llp, init_x, method=method, options={'disp': True, 'max_itr': 500})
 
         params = 0
         param_list = expand(soln.x)
