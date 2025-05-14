@@ -1,7 +1,7 @@
 import jax
 import jax.numpy as jnp
 from utils.SLD_ojax import ScatteredLightDisk
-from utils.old_SLD_utils import DustEllipticalDistribution2PowerLaws, DoubleHenyeyGreenstein_SPF, GAUSSIAN_PSF
+from utils.SLD_utils import DustEllipticalDistribution2PowerLaws, DoubleHenyeyGreenstein_SPF, GAUSSIAN_PSF
 from functools import partial
 import jax.scipy.signal as jss
 

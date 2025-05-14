@@ -11,6 +11,8 @@ utils/__pycache__/interpolated_univariate_spline.cpython-312.pyc
 utils/__pycache__/disk_utils_jax.cpython-312.pyc
 utils/__pycache__/__init__.cpython-312.pyc
 statistical_analysis/__pycache__/optimize_framework.cpython-312.pyc
+tutorials/cdbs
+turorials/webbpsf-data
 __pycache__/GPI_init_fit.cpython-312.pyc
 GPI_init_fit.ipynb
 GPI_init_fit.py
