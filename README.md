@@ -33,7 +33,7 @@ pip install --upgrade "jax[cpu]"  # or "jax[cuda]" for GPU
 Information about the disk and misc parameters can be found in objective_functions.py. Information about the
 scattering phase function and point spread function parameters can be found in SLD_utils.py.
 
-Check out [GRaTeR Image Generator](scattered-light-disks.vercel.app) to visualize how each of the parameters affect the disk model!
+Check out [GRaTeR Image Generator](https://scattered-light-disks.vercel.app) to visualize how each of the parameters affect the disk model!
 
 ## Repository Structure
 
