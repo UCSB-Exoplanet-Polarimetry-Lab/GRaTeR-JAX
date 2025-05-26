@@ -29,7 +29,11 @@ class ScatteredLightDisk(Jax_class):
             pixel field of view in arcsec/px (default the SPHERE pixel
             scale 0.01225 arcsec/px)
         pa : float
-            position angle of the disc in degrees (default 0 degrees, e.g. North)
+            position angle of the disc in degrees; 
+            here, PA is defined as the angle starting at North (positive y-axis) and moving counter-clockwise
+            toward the projected major axis of the disk such that PA - 90 deg = the PA of the projected semiminor axis of the disk's
+            presumed front side, where front is chosen to be the brightest. This is offset by 180 degrees from conventions in Esposito+ 2020,
+            and is consistent with the convention used in the disk forward modeling functionality of VIP.
         distr_params : dict
             Parameters describing the dust density distribution function
             to be implemented. By default, it uses a two-power law dust

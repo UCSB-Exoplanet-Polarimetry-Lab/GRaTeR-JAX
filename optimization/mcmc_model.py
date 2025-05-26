@@ -4,13 +4,14 @@ import corner
 import matplotlib.pyplot as plt
 
 class MCMC_model():
-    def __init__(self, fun, theta_bounds):
+    def __init__(self, fun, theta_bounds, name):
         self.fun = fun
         self.theta_bounds = theta_bounds
         self.sampler = None
         self.pos = None
         self.prob = None
         self.state = None
+        self.name = name
 
     def _lnprior(self, theta):
         if np.all(theta > self.theta_bounds[0]) and np.all(theta < self.theta_bounds[1]):
@@ -27,20 +28,36 @@ class MCMC_model():
             return -np.inf
         return lp + self.fun(theta)
 
-    def run(self, initial, nwalkers=500, niter = 500, burn_iter = 100, nconst = 1e-7, **kwargs):
+    def run(self, initial, nwalkers=500, niter = 500, burn_iter = 100, nconst = 1e-7, continue_from=None, **kwargs):
 
         self.ndim = len(initial)
         self.nwalkers = nwalkers
         self.niter = niter
         self.burn_iter = burn_iter
 
-        p0 = [np.array(initial) + 1e-7 * np.random.randn(self.ndim) for i in range(nwalkers)]
-        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self._lnprob, **kwargs)
-        print("Running burn-in...")
-        p0, _, _ = sampler.run_mcmc(p0, burn_iter,progress=True)
-        sampler.reset()
-        print("Running production...")
-        pos, prob, state = sampler.run_mcmc(p0, niter,progress=True)
+        outfile = "{}_emcee_backend.h5".format(self.name)
+        backend = emcee.backends.HDFBackend(outfile)
+        if continue_from is not True:
+            yes = input("This is going to overwrite the previous backend. Do you want to continue? (y/n): ")
+            if yes == 'y':
+                print("Overwriting the previous backend...")
+                backend.reset(nwalkers, self.ndim)
+                p0 = [np.array(initial) + 1e-7 * np.random.randn(self.ndim) for i in range(nwalkers)]
+            else:
+                print("Exiting...")
+                return
+            
+        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self._lnprob, backend=backend, **kwargs)
+        if continue_from is not True:
+            print("Running burn-in...")
+            p0, _, _ = sampler.run_mcmc(p0, burn_iter,progress=True)
+            sampler.reset()
+            print("Running production...")
+            pos, prob, state = sampler.run_mcmc(p0, niter,progress=True)
+        elif continue_from is True:
+            print("Running production...")
+            pos, prob, state = sampler.run_mcmc(None, niter,progress=True)  
+        
         self.sampler, self.pos, self.prob, self.state = sampler, pos, prob, state
         return sampler, pos, prob, state
 
@@ -54,24 +71,29 @@ class MCMC_model():
             raise Exception("Need to run model first!")
         return np.median(self.sampler.flatchain, axis=0)
 
-    def show_corner_plot(self, labels, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
+    def show_corner_plot(self, labels, discard=0, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
                             quiet = False):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
-        fig = corner.corner(self.sampler.flatchain,truths=truths, show_titles=show_titles,labels=labels,
+        fig = corner.corner(self.sampler.flatchain[:,discard:],truths=truths, show_titles=show_titles,labels=labels,
                                 plot_datapoints=plot_datapoints,quantiles=quantiles, quiet=quiet)
 
     def plot_chains(self, labels, cols_per_row = 3):
-        # Plotting Chains
-        n_cols = int((self.ndim + 2) / cols_per_row)
-        fig, axes = plt.subplots(n_cols,3, figsize=(20,20))
-        fig.subplots_adjust(hspace=0.5)
-        for i in range(0, n_cols):
-            for j in range(0, cols_per_row):
-                if(cols_per_row*i+j < self.ndim):
-                    axes[i][j].plot(np.linspace(0, self.nwalkers, self.niter), self.sampler.get_chain()[:, :, cols_per_row*i+j].T)
-                    #axes[i][j].set_ylim(BOUNDS[0][cols_per_row*i+j], BOUNDS[1][cols_per_row*i+j])    sets plot y-limits to that of the actual parameter
-                    axes[i][j].set_title(labels[cols_per_row*i+j])
+        if self.sampler is None:
+            raise Exception("Need to run model first!")
+        
+        chain = self.sampler.get_chain()  # shape: (niter, nwalkers, ndim)
+        n_params = chain.shape[2]
+        n_rows = int(np.ceil(n_params / cols_per_row))
+        fig, axes = plt.subplots(n_rows, cols_per_row, figsize=(6 * cols_per_row, 4 * n_rows), squeeze=False)
+        fig.subplots_adjust(hspace=0.4)
+
+        x = np.arange(self.niter)
+        for idx in range(n_params):
+            i, j = divmod(idx, cols_per_row)
+            for walker in range(self.nwalkers):
+                axes[i][j].plot(x, chain[:, walker, idx], alpha=0.5)
+            axes[i][j].set_title(labels[idx])
         plt.show()
 
 
