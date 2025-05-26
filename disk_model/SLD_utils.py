@@ -420,7 +420,7 @@ class Winnie_PSF(Jax_class):
     
 class StellarPSFReference:
 
-    reference_images = jnp.zeros((10, 10))
+    reference_images = jnp.zeros((5, 10, 10))
 
 class LinearStellarPSF(Jax_class):
     params = {'stellar_weights': None}
