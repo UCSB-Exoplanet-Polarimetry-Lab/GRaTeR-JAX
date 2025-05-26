@@ -75,7 +75,7 @@ class MCMC_model():
                             quiet = False):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
-        fig = corner.corner(self.sampler.flatchain[:,:,discard:],truths=truths, show_titles=show_titles,labels=labels,
+        fig = corner.corner(self.sampler.flatchain[:,discard:],truths=truths, show_titles=show_titles,labels=labels,
                                 plot_datapoints=plot_datapoints,quantiles=quantiles, quiet=quiet)
 
     def plot_chains(self, labels, cols_per_row = 3):
