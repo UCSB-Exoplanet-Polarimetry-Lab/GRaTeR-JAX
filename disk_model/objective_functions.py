@@ -340,6 +340,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
 
     return -0.5 * jnp.sum(result)  # / jnp.size(target_image)s
 
+@jax.jit
 def residuals(target_image,err_map,model_image):
     """
     residuals for use in objective function
