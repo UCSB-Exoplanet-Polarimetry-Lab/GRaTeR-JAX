@@ -8,24 +8,26 @@ import json
 
 # Built for new objective function
 class Optimizer:
-    def __init__(self, disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel, **kwargs):
+    def __init__(self, disk_params, spf_params, psf_params, stellar_psf_params, misc_params, DiskModel, DistrModel, FuncModel,
+                 PSFModel, StellarPSFModel, **kwargs):
         self.disk_params = disk_params
         self.spf_params = spf_params
         self.psf_params = psf_params
+        self.stellar_psf_params = stellar_psf_params
         self.misc_params = misc_params
         self.DiskModel = DiskModel
         self.DistrModel = DistrModel
         self.FuncModel = FuncModel
         self.PSFModel = PSFModel
+        self.StellarPSFModel = StellarPSFModel
         self.kwargs = kwargs
         self.name = 'test'
         self.last_fit = None
 
     def model(self):
         return objective_model(
-            self.disk_params, self.spf_params, self.psf_params, self.misc_params,
-            self.DiskModel, self.DistrModel, self.FuncModel,
-            self.PSFModel, **self.kwargs
+            self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
+            self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel, **self.kwargs
         )
 
     def log_likelihood_pos(self, target_image, err_map):
@@ -33,6 +35,9 @@ class Optimizer:
 
     def log_likelihood(self, target_image, err_map):
         return log_likelihood(self.model(), target_image, err_map)
+    
+    def define_reference_images(self, reference_images):
+        StellarPSFReference.reference_images = reference_images
 
     def scipy_optimize(self, fit_keys, logscaled_params, array_params, target_image, err_map,
                        disp_soln=False, iters=500, method=None, **kwargs): 
@@ -40,8 +45,10 @@ class Optimizer:
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
-        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
-                                    self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map)
+        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
+                                       self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
+                                       self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
+                                       target_image, err_map)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -63,8 +70,10 @@ class Optimizer:
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
         
-        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
-                                    self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map)
+        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
+                                       self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
+                                       self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
+                                       target_image, err_map)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -102,8 +111,10 @@ class Optimizer:
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
         
-        ll = lambda x: objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
-                                    self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map)
+        ll = lambda x: objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
+                                     self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
+                                     self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
+                                     target_image, err_map)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -210,6 +221,7 @@ class Optimizer:
         print("Disk Params: " + str(self.disk_params))
         print("SPF Params: " + str(self.spf_params))
         print("PSF Params: " + str(self.psf_params))
+        print("Stellar PSF Params: " + str(self.stellar_psf_params))
         print("Misc Params: " + str(self.misc_params))
 
     def _flatten_params(self, fit_keys, logscales, is_arrays):
@@ -240,13 +252,15 @@ class Optimizer:
         param_list = []
         for i, key in enumerate(fit_keys):
             # Get parameter from appropriate dictionary
-            if key in self.disk_params:
+            if isinstance(self.disk_params, dict) and key in self.disk_params:
                 value = self.disk_params[key]
-            elif key in self.spf_params:
+            elif isinstance(self.spf_params, dict) and key in self.spf_params:
                 value = self.spf_params[key]
-            elif key in self.psf_params:
+            elif isinstance(self.psf_params, dict) and key in self.psf_params:
                 value = self.psf_params[key]
-            elif key in self.misc_params:
+            elif isinstance(self.stellar_psf_params, dict) and key in self.stellar_psf_params:
+                value = self.stellar_psf_params[key]
+            elif isinstance(self.misc_params, dict) and key in self.misc_params:
                 value = self.misc_params[key]
             else:
                 raise ValueError(f"{key} not in any of the parameter dictionaries!")
@@ -297,8 +311,8 @@ class Optimizer:
         for i, key in enumerate(fit_keys):
             if is_arrays[i]:
                 # For arrays, determine the size
-                for param_dict in [self.disk_params, self.spf_params, self.psf_params, self.misc_params]:
-                    if key in param_dict and hasattr(param_dict[key], "__len__"):
+                for param_dict in [self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params]:
+                    if isinstance(param_dict, dict) and key in param_dict and hasattr(param_dict[key], "__len__"):
                         array_size = len(param_dict[key])
                         break
                 else:
@@ -343,13 +357,15 @@ class Optimizer:
         for i, key in enumerate(fit_keys):
             value = param_values[i]
             
-            if key in self.disk_params:
+            if isinstance(self.disk_params, dict) and key in self.disk_params:
                 self.disk_params[key] = value
-            elif key in self.spf_params:
+            elif isinstance(self.spf_params, dict) and key in self.spf_params:
                 self.spf_params[key] = value
-            elif key in self.psf_params:
+            elif isinstance(self.psf_params, dict) and key in self.psf_params:
                 self.psf_params[key] = value
-            elif key in self.misc_params:
+            elif isinstance(self.stellar_psf_params, dict) and key in self.stellar_psf_params:
+                self.stellar_psf_params[key] = value
+            elif isinstance(self.misc_params, dict) and key in self.misc_params:
                 self.misc_params[key] = value
             else:
                 raise ValueError(f"{key} not in any of the parameter dictionaries!")

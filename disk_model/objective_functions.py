@@ -35,9 +35,9 @@ def log_likelihood(image, target_image, err_map):
 
     return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, disk_params, spf_params, psf_params, distance = 0., pxInArcsec = 0.,
-              nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
+              distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
 
     distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
                                    e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
@@ -74,12 +74,15 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, disk_params, spf_param
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image - StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
     return scattered_light_image*flux_scaling
 
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, disk_params, spf_params, distance = 0., pxInArcsec = 0.,
-              nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params,
+                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
 
     distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
                                    e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
@@ -115,12 +118,16 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, disk_params, 
 
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
 
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image - StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
     return scattered_light_image*flux_scaling
 
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, disk_params, spf_params, psf_params, distance = 0., pxInArcsec = 0.,
-              nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
+                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
+                     knots=jnp.linspace(1,-1,6)):
 
     distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
                                    e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
@@ -159,12 +166,16 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, disk_params, sp
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image - StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
     return scattered_light_image*flux_scaling
 
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, disk_params, spf_params, distance = 0., pxInArcsec = 0.,
-              nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params,
+                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
+                     flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
 
     distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
                                    e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
@@ -201,52 +212,64 @@ def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, disk_p
                                                             jnp.array([y, x]),order=1,cval = 0.)
 
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
+
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image - StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
     return scattered_light_image*flux_scaling
 
 ### Objective Functions
 
-def objective_model(disk_params, spf_params, psf_params, misc_params,
-                       DiskModel, DistrModel, FuncModel, PSFModel, **kwargs):
+def objective_model(disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
+                       DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, **kwargs):
 
     """
     Objective function for optimization that updates only the selected parameters.
     """
+
+    if stellar_psf_params == None:
+        stellar_psf_params = 0.
+    if psf_params == None:
+        psf_params = 0.
     
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
         model_image = jax_model(
-            DiskModel, DistrModel, FuncModel, PSFModel,
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
             pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             FuncModel.pack_pars(spf_params) if isinstance(spf_params, dict) else spf_params,
             PSFModel.pack_pars(psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
         )
     elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
         model_image = jax_model_winnie(
-            DiskModel, DistrModel, FuncModel, psf_params,
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
             pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             FuncModel.pack_pars(spf_params) if isinstance(spf_params, dict) else spf_params,
+            StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
         )
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
         model_image = jax_model_spline(
-            DiskModel, DistrModel, FuncModel, PSFModel,
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
             pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             spf_params['knot_values'],
             PSFModel.pack_pars(psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
         )
     else:
         model_image = jax_model_spline_winnie(
-            DiskModel, DistrModel, FuncModel, psf_params,
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
             pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             spf_params['knot_values'],
+            StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
@@ -254,14 +277,16 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
 
     return model_image
 
-def objective_ll(disk_params, spf_params, psf_params, misc_params,
-                       DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map, **kwargs):
+def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
+                       DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
+                       **kwargs):
     """
     Objective function for optimization that updates only the selected parameters.
     """
 
     model_image = objective_model(
-        disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel
+        disk_params, spf_params, psf_params, stellar_psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel,
+        StellarPSFModel
     )
 
     sigma2 = jnp.power(err_map, 2)
@@ -270,8 +295,9 @@ def objective_ll(disk_params, spf_params, psf_params, misc_params,
 
     return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
 
-def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
-                       DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map, **kwargs):
+def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
+                       DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
+                       **kwargs):
     """
     Objective function for optimization that updates only the selected parameters.
     """
@@ -280,6 +306,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
     temp_disk_params = disk_params.copy() if isinstance(disk_params, dict) else {}
     temp_spf_params = spf_params.copy() if isinstance(spf_params, dict) else {}
     temp_psf_params = psf_params.copy() if isinstance(psf_params, dict) else {}
+    temp_stellar_psf_params = stellar_psf_params.copy() if isinstance(stellar_psf_params, dict) else {}
     temp_misc_params = misc_params.copy() if isinstance(misc_params, dict) else {}
 
     # Corresponding index of params_fit for each key in fit_keys
@@ -292,25 +319,29 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             temp_spf_params[key] = params_fit[param_index]
         elif key in temp_psf_params:
             temp_psf_params[key] = params_fit[param_index]
+        elif key in temp_stellar_psf_params:
+            temp_stellar_psf_params[key] = params_fit[param_index]
         elif key in temp_misc_params:
             temp_misc_params[key] = params_fit[param_index]
         param_index += 1
 
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
         model_image = jax_model(
-            DiskModel, DistrModel, FuncModel, PSFModel,
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else spf_params,
             PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
         )
     elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
         model_image = jax_model_winnie(
-            DiskModel, DistrModel, FuncModel, psf_params,
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else spf_params,
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
@@ -318,19 +349,21 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
 
         model_image = jax_model_spline(
-            DiskModel, DistrModel, FuncModel, PSFModel,
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             temp_spf_params['knot_values'],
             PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
         )
     else:
         model_image = jax_model_spline_winnie(
-            DiskModel, DistrModel, FuncModel, psf_params,
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             temp_spf_params['knot_values'],
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)

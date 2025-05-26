@@ -6,11 +6,8 @@ import matplotlib.pyplot as plt
 from disk_model.interpolated_univariate_spline import InterpolatedUnivariateSpline
 from astropy.io import fits
 import jax.scipy.signal as jss
+from disk_model.winnie_class import WinniePSF
 import os
-
-os.environ["WEBBPSF_PATH"] = '../webbpsf-data'
-os.environ["WEBBPSF_EXT_PATH"] = '../webbpsf-data'
-os.environ["PYSYN_CDBS"] = "../cdbs"
 
 class Jax_class:
 
@@ -420,3 +417,62 @@ class Winnie_PSF(Jax_class):
     @partial(jax.jit, static_argnums=(0))
     def generate(cls, image, winnie_model):
         return jnp.mean(winnie_model.get_convolved_cube(image), axis=0)
+    
+class StellarPSFReference:
+
+    reference_images = jnp.zeros((10, 10))
+
+class LinearStellarPSF(Jax_class):
+    params = {'stellar_weights': None}
+
+    @classmethod
+    @partial(jax.jit, static_argnames=['cls'])
+    def pack_pars(cls, p_dict):
+        return p_dict['stellar_weights']
+    
+    @classmethod
+    @partial(jax.jit, static_argnames=['cls'])
+    def unpack_pars(cls, stellar_psf_params):
+        p_dict = {}
+        p_dict['stellar_weights'] = stellar_psf_params
+        return p_dict
+
+    @classmethod
+    @partial(jax.jit, static_argnames=['cls', 'nx', 'ny'])
+    def compute_stellar_psf_image(cls, stellar_weights, nx, ny):
+        image = jnp.tensordot(stellar_weights, StellarPSFReference.reference_images, axes=1)
+        resized = jax.image.resize(image, (nx, ny), method='linear')
+        return resized
+    
+class PositionalStellarPSF(Jax_class):
+    params = {'stellar_weights': None, 'stellar_xs': None, 'stellar_ys': None}
+
+    @classmethod
+    @partial(jax.jit, static_argnames=['cls'])
+    def pack_pars(cls, p_dict):
+        return jnp.concatenate([p_dict['stellar_weights'], p_dict['stellar_xs'], p_dict['stellar_ys']])
+    
+    @classmethod
+    @partial(jax.jit, static_argnames=['cls', 'num_images'])
+    def unpack_pars(cls, stellar_psf_params, num_images):
+        p_dict = {}
+        p_dict['stellar_weights'] = stellar_psf_params[0: num_images]
+        p_dict['stellar_xs'] = stellar_psf_params[num_images: 2*num_images]
+        p_dict['stellar_ys'] = stellar_psf_params[2*num_images: 3*num_images]
+        return p_dict
+
+    @classmethod
+    @partial(jax.jit, static_argnames=['cls', 'nx', 'ny'])
+    def compute_stellar_psf_image(cls, stellar_psf_params, nx, ny):
+        stellar_psf_dict = PositionalStellarPSF.unpack_pars(stellar_psf_params, jnp.shape(StellarPSFReference.reference_images)[0])
+        def body(i, acc):
+            img = stellar_psf_dict['stellar_weights'][i] * StellarPSFReference.reference_images[i]
+            offset = (stellar_psf_dict['stellar_xs'][i], stellar_psf_dict['stellar_ys'][i])
+            acc = jax.lax.dynamic_update_slice(acc, img, offset)
+            return acc
+
+        N = StellarPSFReference.reference_images.shape[0]
+        output = jnp.zeros(jnp.shape(StellarPSFReference.reference_images[0]))
+        image = jax.lax.fori_loop(0, N, body, output)
+        resized = jax.image.resize(image, (nx, ny), method='linear')
+        return resized
