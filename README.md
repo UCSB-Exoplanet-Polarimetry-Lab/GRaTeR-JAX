@@ -2,6 +2,8 @@
 
 **GRaTeR-JAX** is a machine learning JAX-based implementation of the **Generalized Radial Transporter (GRaTeR)** framework, designed for modeling scattered light disks in protoplanetary systems. This repository provides tools for forward modeling, optimization, and parameter estimation of scattered light disk images using JAX's accelerated computations.
 
+<img src="https://github.com/user-attachments/assets/c10f45e8-5449-4891-b6a7-33954cf6d954" width="300">
+
 ## Features
 
 - **JAX-Based Optimization**: Leverages JAX for fast, GPU/TPU-accelerated disk modeling.
@@ -33,7 +35,7 @@ pip install --upgrade "jax[cpu]"  # or "jax[cuda]" for GPU
 Information about the disk and misc parameters can be found in objective_functions.py. Information about the
 scattering phase function and point spread function parameters can be found in SLD_utils.py.
 
-Check out [GRaTeR Image Generator](scattered-light-disks.vercel.app) to visualize how each of the parameters affect the disk model!
+Check out [GRaTeR Image Generator](https://scattered-light-disks.vercel.app) to visualize how each of the parameters affect the disk model!
 
 ## Repository Structure
 
