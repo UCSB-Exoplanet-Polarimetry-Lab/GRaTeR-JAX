@@ -8,8 +8,8 @@ import json
 
 # Built for new objective function
 class Optimizer:
-    def __init__(self, disk_params, spf_params, psf_params, stellar_psf_params, misc_params, DiskModel, DistrModel, FuncModel,
-                 PSFModel, StellarPSFModel, **kwargs):
+    def __init__(self, disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel,
+                 PSFModel, stellar_psf_params=None, StellarPSFModel=None, **kwargs):
         self.disk_params = disk_params
         self.spf_params = spf_params
         self.psf_params = psf_params
