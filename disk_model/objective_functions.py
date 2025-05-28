@@ -220,8 +220,8 @@ def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, Stella
 
 ### Objective Functions
 
-def objective_model(disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
-                       DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, **kwargs):
+def objective_model(disk_params, spf_params, psf_params, misc_params,
+                       DiskModel, DistrModel, FuncModel, PSFModel, stellar_psf_params=None, StellarPSFModel=None, **kwargs):
 
     """
     Objective function for optimization that updates only the selected parameters.
