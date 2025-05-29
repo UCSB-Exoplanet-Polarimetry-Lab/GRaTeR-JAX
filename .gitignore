@@ -8,3 +8,5 @@ hr4796a_H_pol_initial_fit.png
 cdbs/
 *.pyc
 stellar_psf_images/
+test_images/
+stpsf-data/
