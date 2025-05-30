@@ -388,6 +388,8 @@ class Optimizer:
             for key, value in self.spf_params.items():
                 if isinstance(value, jnp.ndarray):
                     serializable_spf[key] = value.tolist()
+                elif isinstance(value, np.ndarray):
+                    serializable_spf[key] = value.tolist()
                 else:
                     serializable_spf[key] = value
             json.dump(serializable_spf, save_file)
@@ -397,6 +399,8 @@ class Optimizer:
             serializable_misc = {}
             for key, value in self.misc_params.items():
                 if isinstance(value, jnp.ndarray):
+                    serializable_misc[key] = value.tolist()
+                elif isinstance(value, np.ndarray):
                     serializable_misc[key] = value.tolist()
                 else:
                     serializable_misc[key] = value
