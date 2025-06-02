@@ -12,6 +12,7 @@ class MCMC_model():
         self.prob = None
         self.state = None
         self.name = name
+        self.burn_iter = 100
 
     def _lnprior(self, theta):
         if np.all(theta > self.theta_bounds[0]) and np.all(theta < self.theta_bounds[1]):
@@ -72,8 +73,10 @@ class MCMC_model():
             raise Exception("Need to run model first!")
         return np.median(self.sampler.flatchain, axis=0)
 
-    def show_corner_plot(self, labels, discard=self.burn_iter, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
+    def show_corner_plot(self, labels, discard=None, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
                             quiet = False):
+        if discard is None:
+            discard = self.burn_iter
         if (self.sampler == None):
             raise Exception("Need to run model first!")
         fig = corner.corner(self.sampler.flatchain[:,discard:],truths=truths, show_titles=show_titles,labels=labels,
