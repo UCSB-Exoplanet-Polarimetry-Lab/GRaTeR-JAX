@@ -96,6 +96,10 @@ class MCMC_model():
             axes[i][j].set_title(labels[idx])
         plt.show()
 
+    def median_model(self):
+        if (self.sampler == None):
+            raise Exception("Need to run model first!")
+        
 
     # Autocorrelation Methods from Here
     def auto_corr(self, chain_length = 50):
