@@ -74,10 +74,12 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image - StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+    scattered_light_image*flux_scaling
 
-    return scattered_light_image*flux_scaling
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
+    return scattered_light_image
 
 
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
@@ -118,10 +120,12 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
 
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
 
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image - StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+    scattered_light_image*flux_scaling
 
-    return scattered_light_image*flux_scaling
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
+    return scattered_light_image
 
 
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
@@ -166,10 +170,12 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image - StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+    scattered_light_image = scattered_light_image*flux_scaling
 
-    return scattered_light_image*flux_scaling
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
+    return scattered_light_image
 
 
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
@@ -213,10 +219,12 @@ def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, Stella
 
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
 
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image - StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+    scattered_light_image = scattered_light_image*flux_scaling
 
-    return scattered_light_image*flux_scaling
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
+    return scattered_light_image
 
 ### Objective Functions
 
@@ -227,9 +235,9 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
     Objective function for optimization that updates only the selected parameters.
     """
 
-    if stellar_psf_params == None:
+    if StellarPSFModel == None:
         stellar_psf_params = 0.
-    if psf_params == None:
+    if PSFModel == None:
         psf_params = 0.
     
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
@@ -371,7 +379,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, ste
 
     result = residuals(target_image,err_map,model_image)
 
-    return -0.5 * jnp.sum(result)  # / jnp.size(target_image)s
+    return -0.5 * jnp.sum(result) / jnp.size(target_image)
 
 @jax.jit
 def residuals(target_image,err_map,model_image):

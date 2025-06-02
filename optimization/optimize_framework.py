@@ -9,7 +9,7 @@ import json
 # Built for new objective function
 class Optimizer:
     def __init__(self, disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel,
-                 PSFModel, stellar_psf_params=None, StellarPSFModel=None, **kwargs):
+                 PSFModel, StellarPSFModel = None, stellar_psf_params = None, **kwargs):
         self.disk_params = disk_params
         self.spf_params = spf_params
         self.psf_params = psf_params
@@ -24,23 +24,29 @@ class Optimizer:
         self.name = 'test'
         self.last_fit = None
 
-    def model(self):
+    def get_model(self):
         return objective_model(
             self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel, **self.kwargs
         )
+    
+    def get_disk(self):
+        return objective_model(
+            self.disk_params, self.spf_params, None, None, self.misc_params,
+            self.DiskModel, self.DistrModel, self.FuncModel, None, None, **self.kwargs
+        )
 
     def log_likelihood_pos(self, target_image, err_map):
-        return -log_likelihood(self.model(), target_image, err_map)
+        return -log_likelihood(self.get_model(), target_image, err_map)
 
     def log_likelihood(self, target_image, err_map):
-        return log_likelihood(self.model(), target_image, err_map)
+        return log_likelihood(self.get_model(), target_image, err_map)
     
     def define_reference_images(self, reference_images):
         StellarPSFReference.reference_images = reference_images
 
     def scipy_optimize(self, fit_keys, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, method=None, **kwargs): 
+                       disp_soln=False, iters=500, method=None, ftol=1e-12, gtol=1e-12, eps=1e-8, **kwargs): 
         
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
@@ -52,7 +58,7 @@ class Optimizer:
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
-        soln = minimize(llp, init_x, method=method, options={'disp': True, 'max_itr': iters})
+        soln = minimize(llp, init_x, method=method, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
@@ -65,7 +71,7 @@ class Optimizer:
         return soln
     
     def scipy_bounded_optimize(self, fit_keys, fit_bounds, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, **kwargs):
+                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, **kwargs):
         
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
@@ -95,7 +101,7 @@ class Optimizer:
                 else:
                     bounds.append((low[0], high[0]))
             i+=1
-        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, options={'disp': True, 'max_itr': iters})
+        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
@@ -150,7 +156,7 @@ class Optimizer:
             print("Initial mcmc parameters are out of bounds!")
             output_string = ""
             for i in range(0, len(init_param_list)):
-                if(np.all(init_param_list[i] < init_lb_list[i]) or np.all(init_param_list[i] > init_ub_list[i])):
+                if(np.any(init_param_list[i] < init_lb_list[i]) or np.any(init_param_list[i] > init_ub_list[i])):
                     output_string += (f"{fit_keys[i]}: {init_param_list[i]}, ")
             print(output_string[0:-2])
             raise Exception("MCMC Initial Bounds Exception")
@@ -186,7 +192,7 @@ class Optimizer:
 
         self.spf_params['knot_values'] = DoubleHenyeyGreenstein_SPF.compute_phase_function_from_cosphi(dhg_params, InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params))
 
-        init_image = self.model()
+        init_image = self.get_model()
 
         if self.disk_params['inclination'] > 70: 
             knot_scale = 1.*np.nanpercentile(target_image[mask], 99) / jnp.nanmax(init_image)
@@ -203,6 +209,10 @@ class Optimizer:
             #self.misc_params['flux_scaling'] = self.misc_params['flux_scaling'] / adjust_scale
         #else:
         self.scale_spline_to_fixed_point(0, 1)
+
+    def computer_stellar_psf_image(self):
+        return self.StellarPSFModel.compute_stellar_psf_image(self.StellarPSFModel.pack_pars(self.stellar_psf_params),
+                                                              self.misc_params['nx'], self.misc_params['ny'])
 
     def scale_spline_to_fixed_point(self, cosphi, spline_val):
         adjust_scale = spline_val / InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
@@ -470,6 +480,10 @@ class OptimizeUtils:
                 noise_array[pixel[0]][pixel[1]] = noise_array[pixel[0]][pixel[1]] * 1e6 
 
         return noise_array
+    
+    @classmethod
+    def convert_dhg_params_to_spline_params(cls, g1, g2, w, spf_params):
+        return DoubleHenyeyGreenstein_SPF.compute_phase_function_from_cosphi([g1, g2, w], InterpolatedUnivariateSpline_SPF.get_knots(spf_params))
 
     @classmethod
     def process_image(cls, image, scale_factor=1, bounds = (70, 210, 70, 210)):
