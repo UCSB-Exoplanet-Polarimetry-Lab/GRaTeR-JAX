@@ -12,6 +12,8 @@ class MCMC_model():
         self.prob = None
         self.state = None
         self.name = name
+        self.burn_iter = 100
+        self.nwalkers = None
 
     def _lnprior(self, theta):
         if np.all(theta > self.theta_bounds[0]) and np.all(theta < self.theta_bounds[1]):
@@ -56,7 +58,8 @@ class MCMC_model():
             pos, prob, state = sampler.run_mcmc(p0, niter,progress=True)
         elif continue_from is True:
             print("Running production...")
-            pos, prob, state = sampler.run_mcmc(None, niter,progress=True)  
+            pos, prob, state = sampler.run_mcmc(None, niter,progress=True) 
+            self.niter = np.shape(sampler.get_chain())[0] 
         
         self.sampler, self.pos, self.prob, self.state = sampler, pos, prob, state
         return sampler, pos, prob, state
@@ -71,11 +74,13 @@ class MCMC_model():
             raise Exception("Need to run model first!")
         return np.median(self.sampler.flatchain, axis=0)
 
-    def show_corner_plot(self, labels, discard=0, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
+    def show_corner_plot(self, labels, discard=None, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
                             quiet = False):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
-        fig = corner.corner(self.sampler.flatchain[:,discard:],truths=truths, show_titles=show_titles,labels=labels,
+        if discard is None:
+            discard = self.burn_iter
+        fig = corner.corner(self.sampler.flatchain[int(discard*self.nwalkers):,:],truths=truths, show_titles=show_titles,labels=labels,
                                 plot_datapoints=plot_datapoints,quantiles=quantiles, quiet=quiet)
 
     def plot_chains(self, labels, cols_per_row = 3):
@@ -88,7 +93,7 @@ class MCMC_model():
         fig, axes = plt.subplots(n_rows, cols_per_row, figsize=(6 * cols_per_row, 4 * n_rows), squeeze=False)
         fig.subplots_adjust(hspace=0.4)
 
-        x = np.arange(self.niter)
+        x = np.arange(np.shape(chain)[0])
         for idx in range(n_params):
             i, j = divmod(idx, cols_per_row)
             for walker in range(self.nwalkers):
