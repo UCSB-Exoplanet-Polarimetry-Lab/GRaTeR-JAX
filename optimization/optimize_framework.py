@@ -169,7 +169,7 @@ class Optimizer:
         mc_model = MCMC_model(ll, (init_lb, init_ub), self.name)
         mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns,continue_from=continue_from)
 
-        mc_soln = np.median(mc_model.sampler.flatchain, axis=0)
+        mc_soln = mc_model.get_theta_median()
         param_list = self._unflatten_params(mc_soln, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
 
