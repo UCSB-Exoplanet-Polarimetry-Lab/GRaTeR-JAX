@@ -305,7 +305,7 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
 
 def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
-                       **kwargs):
+                       scale = 1., **kwargs):
     """
     Objective function for optimization that updates only the selected parameters.
     """
@@ -379,7 +379,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, ste
 
     result = residuals(target_image,err_map,model_image)
 
-    return -0.5 * jnp.sum(result) / jnp.size(target_image)
+    return -0.5 * jnp.sum(result) / scale
 
 @jax.jit
 def residuals(target_image,err_map,model_image):

@@ -463,33 +463,36 @@ class PositionalStellarPSF(Jax_class):
         return p_dict
 
     @classmethod
-    @partial(jax.jit, static_argnames=['cls', 'nx', 'ny'])
+    @partial(jax.jit, static_argnames=["cls", "nx", "ny"])
     def compute_stellar_psf_image(cls, stellar_psf_params, nx, ny):
-        psf_refs = StellarPSFReference.reference_images  # shape [N, h, w]
+        psf_refs = StellarPSFReference.reference_images  # [N, h, w]
         N, h, w = psf_refs.shape
         p_dict = cls.unpack_pars(stellar_psf_params, N)
 
-        def place_psf(weight, x, y, psf_img):
-            # Create output canvas
-            acc = jnp.zeros((nx, ny))
+        xx = jnp.arange(h).reshape(h, 1)  # shape (h, 1)
+        yy = jnp.arange(w).reshape(1, w)  # shape (1, w)
 
-            # Offsets
-            x0 = x - h / 2
-            y0 = y - w / 2
+        def place_one(weight, x, y, psf_img):
+            x0 = x - h / 2.0
+            y0 = y - w / 2.0
 
-            # Grid of local pixel positions
-            xx = jnp.arange(h).reshape(-1, 1)
-            yy = jnp.arange(w).reshape(1, -1)
-            x_pix = x0 + xx
-            y_pix = y0 + yy
+            x_pix = x0 + xx  # shape (h, 1)
+            y_pix = y0 + yy  # shape (1, w)
 
             x0f = jnp.floor(x_pix)
             y0f = jnp.floor(y_pix)
-            dx = x_pix - x0f
-            dy = y_pix - y0f
 
-            x0i = x0f.astype(jnp.int32)
-            y0i = y0f.astype(jnp.int32)
+            dx = x_pix - x0f  # shape (h, 1)
+            dy = y_pix - y0f  # shape (1, w)
+
+            x0i = x0f.astype(jnp.int32)  # shape (h, 1)
+            y0i = y0f.astype(jnp.int32)  # shape (1, w)
+
+            # Broadcast to shape (h, w)
+            dx = dx.repeat(w, axis=1)
+            dy = dy.repeat(h, axis=0)
+            x0i = x0i.repeat(w, axis=1)
+            y0i = y0i.repeat(h, axis=0)
 
             # Bilinear weights
             w00 = (1 - dx) * (1 - dy)
@@ -497,43 +500,42 @@ class PositionalStellarPSF(Jax_class):
             w01 = (1 - dx) * dy
             w11 = dx * dy
 
-            def add(acc, x_idx, y_idx, weight_map):
-                in_bounds = (
-                    (x_idx >= 0) & (x_idx < nx) &
-                    (y_idx >= 0) & (y_idx < ny)
-                )
-                acc = jax.lax.cond(
-                    in_bounds,
-                    lambda: acc.at[x_idx, y_idx].add(weight * psf_img * weight_map),
-                    lambda: acc
-                )
-                return acc
+            shifts = jnp.array([[0, 0], [1, 0], [0, 1], [1, 1]])
+            weight_maps = jnp.stack([w00, w10, w01, w11], axis=0)
 
-            # Loop manually
-            for i_shift, j_shift, wgt in [
-                (0, 0, w00),
-                (1, 0, w10),
-                (0, 1, w01),
-                (1, 1, w11),
-            ]:
-                xi = x0i + i_shift
-                yi = y0i + j_shift
-                acc = jnp.where(
-                    (xi >= 0) & (xi < nx) & (yi >= 0) & (yi < ny),
-                    acc.at[xi, yi].add(weight * psf_img * wgt),
-                    acc
-                )
+            def gather(shift, weight_map):
+                dx, dy = shift
+                xi = x0i + dx  # (h, w)
+                yi = y0i + dy
+                val = weight * psf_img * weight_map
 
-            return acc
+                xi = xi.reshape(-1)
+                yi = yi.reshape(-1)
+                val = val.reshape(-1)
 
-        # Vectorized across all stars
-        def body(i, acc):
-            return acc + place_psf(
-                p_dict['stellar_weights'][i],
-                p_dict['stellar_xs'][i],
-                p_dict['stellar_ys'][i],
-                psf_refs[i]
-            )
+                mask = (xi >= 0) & (xi < nx) & (yi >= 0) & (yi < ny)
+                idx = jnp.nonzero(mask, size=xi.size, fill_value=0)[0]
 
-        result = jax.lax.fori_loop(0, N, body, jnp.zeros((nx, ny)))
-        return jax.image.resize(result, (nx, ny), method='linear')
+                return xi[idx], yi[idx], val[idx]
+
+            coords = [gather(shifts[i], weight_maps[i]) for i in range(4)]
+            all_x = jnp.concatenate([c[0] for c in coords])
+            all_y = jnp.concatenate([c[1] for c in coords])
+            all_v = jnp.concatenate([c[2] for c in coords])
+            return all_x, all_y, all_v
+
+        x_list, y_list, v_list = jax.vmap(place_one, in_axes=(0, 0, 0, 0))(
+            p_dict["stellar_weights"],
+            p_dict["stellar_xs"],
+            p_dict["stellar_ys"],
+            psf_refs,
+        )
+
+        all_x = jnp.concatenate(x_list)
+        all_y = jnp.concatenate(y_list)
+        all_v = jnp.concatenate(v_list)
+
+        acc = jnp.zeros((nx, ny))
+        acc = acc.at[all_x, all_y].add(all_v)
+
+        return acc
