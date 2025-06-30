@@ -71,15 +71,17 @@ class Optimizer:
         return soln
     
     def scipy_bounded_optimize(self, fit_keys, fit_bounds, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, **kwargs):
+                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale_for_shape = False, **kwargs):
         
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
+
+        scale = jnp.size(target_image) if scale_for_shape else 1.
         
         llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
                                        self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
                                        self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
-                                       target_image, err_map)
+                                       target_image, err_map, scale=scale)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -113,14 +115,17 @@ class Optimizer:
 
         return soln
 
-    def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50,continue_from=False):
+    def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50, 
+            continue_from=False, scale_for_shape=False):
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
+
+        scale = jnp.size(target_image) if scale_for_shape else 1.
         
         ll = lambda x: objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
                                      self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
                                      self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
-                                     target_image, err_map)
+                                     target_image, err_map, scale=scale)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
