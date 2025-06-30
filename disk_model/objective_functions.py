@@ -17,6 +17,7 @@ class Parameter_Index:
     # params for InterpolatedUnivariateSpline_SPF and Winne_PSF is just an instance of WinniePSF (winnie_class.py) itself
 
 
+# General use case
 def pack_pars(p_dict, orig_dict):
     """
     This function takes a parameter dictionary and packs it into a JAX array
@@ -348,8 +349,8 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, ste
         model_image = jax_model_winnie(
             DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
-            FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else spf_params,
-            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else temp_spf_params['knot_values'],
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(temp_stellar_psf_params, dict) else temp_stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
@@ -361,7 +362,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, ste
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             temp_spf_params['knot_values'],
             PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
-            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(temp_stellar_psf_params, dict) else temp_stellar_psf_params,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)

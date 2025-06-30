@@ -72,7 +72,7 @@ class MCMC_model():
     def get_theta_median(self):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
-        return np.median(self.sampler.flatchain, axis=0)
+        return np.median(self.sampler.flatchain[self.burn_iter:], axis=0)
 
     def show_corner_plot(self, labels, discard=None, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
                             quiet = False):

@@ -26,14 +26,18 @@ class Optimizer:
 
     def get_model(self):
         return objective_model(
-            self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
-            self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel, **self.kwargs
+            self.disk_params, self.spf_params, self.psf_params, self.misc_params,
+            self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
+            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
+            **self.kwargs
         )
     
     def get_disk(self):
         return objective_model(
-            self.disk_params, self.spf_params, None, None, self.misc_params,
-            self.DiskModel, self.DistrModel, self.FuncModel, None, None, **self.kwargs
+            self.disk_params, self.spf_params, None, self.misc_params,
+            self.DiskModel, self.DistrModel, self.FuncModel, None,
+            stellar_psf_params=None, StellarPSFModel=None,
+            **self.kwargs
         )
 
     def log_likelihood_pos(self, target_image, err_map):
@@ -174,6 +178,10 @@ class Optimizer:
         self._update_params(param_list, fit_keys)
 
         self.last_fit = 'mcmc'
+
+        # Unlogscale the internal sampler chain
+        array_lengths = [len(self._get_param_value(k)) if k in array_params else 1 for k in fit_keys]
+        OptimizeUtils.unlogscale_mcmc_model(mc_model, fit_keys, logscaled_params, array_params, array_lengths)
 
         return mc_model
     
@@ -411,6 +419,12 @@ class Optimizer:
                 save_file.write("{}: {}\n".format(key, self.misc_params[key]))
         print("Saved human readable file to {}".format(os.path.join(dirname,'{}_{}_hrparams.txt'.format(self.name,self.last_fit))))
 
+    def _get_param_value(self, key):
+        for param_dict in [self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params]:
+            if key in param_dict:
+                return param_dict[key]
+        raise KeyError(f"{key} not found in any parameter dict.")
+
     def save_machine_readable(self,dirname):
         with open(os.path.join(dirname,'{}_{}_diskparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
             json.dump(self.disk_params, save_file)
@@ -517,4 +531,21 @@ class OptimizeUtils:
 
         return mask
     
-    
+    def unlogscale_mcmc_model(cls, mc_model, fit_keys, logscaled_params, array_params, array_lengths):
+        flat = mc_model.sampler.flatchain.copy()
+        chain = mc_model.sampler.chain.copy()
+
+        index = 0
+        for i in range(len(fit_keys)):
+            is_log = fit_keys[i] in logscaled_params
+            is_array = fit_keys[i] in array_params
+            length = array_lengths[i] if is_array else 1
+
+            if is_log:
+                flat[:, index:index+length] = np.exp(flat[:, index:index+length])
+                chain[:, :, index:index+length] = np.exp(chain[:, :, index:index+length])
+            index += length
+
+        # Overwrite the sampler internals
+        mc_model.sampler._chain = chain
+        mc_model.sampler._flatchain = flat
