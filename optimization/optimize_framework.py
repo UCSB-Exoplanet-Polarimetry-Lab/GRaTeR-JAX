@@ -534,6 +534,7 @@ class OptimizeUtils:
 
         return mask
     
+    @classmethod
     def unlogscale_mcmc_model(cls, mc_model, fit_keys, logscaled_params, array_params, array_lengths):
         flat = mc_model.sampler.flatchain.copy()
         chain = mc_model.sampler.chain.copy()
