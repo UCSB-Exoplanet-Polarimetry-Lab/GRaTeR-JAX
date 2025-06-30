@@ -420,7 +420,10 @@ class Optimizer:
         print("Saved human readable file to {}".format(os.path.join(dirname,'{}_{}_hrparams.txt'.format(self.name,self.last_fit))))
 
     def _get_param_value(self, key):
-        for param_dict in [self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params]:
+        param_dicts = [self.disk_params, self.spf_params, self.stellar_psf_params, self.misc_params]
+        if isinstance(self.psf_params, dict):
+            param_dicts.append(self.psf_params)
+        for param_dict in param_dicts:
             if key in param_dict:
                 return param_dict[key]
         raise KeyError(f"{key} not found in any parameter dict.")
