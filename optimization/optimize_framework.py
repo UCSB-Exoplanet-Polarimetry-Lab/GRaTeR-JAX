@@ -8,44 +8,61 @@ import json
 
 # Built for new objective function
 class Optimizer:
-    def __init__(self, disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel, **kwargs):
+    def __init__(self, disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel,
+                 PSFModel, StellarPSFModel = None, stellar_psf_params = None, **kwargs):
         self.disk_params = disk_params
         self.spf_params = spf_params
         self.psf_params = psf_params
+        self.stellar_psf_params = stellar_psf_params
         self.misc_params = misc_params
         self.DiskModel = DiskModel
         self.DistrModel = DistrModel
         self.FuncModel = FuncModel
         self.PSFModel = PSFModel
+        self.StellarPSFModel = StellarPSFModel
         self.kwargs = kwargs
         self.name = 'test'
         self.last_fit = None
 
-    def model(self):
+    def get_model(self):
         return objective_model(
             self.disk_params, self.spf_params, self.psf_params, self.misc_params,
-            self.DiskModel, self.DistrModel, self.FuncModel,
-            self.PSFModel, **self.kwargs
+            self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
+            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
+            **self.kwargs
+        )
+    
+    def get_disk(self):
+        return objective_model(
+            self.disk_params, self.spf_params, None, self.misc_params,
+            self.DiskModel, self.DistrModel, self.FuncModel, None,
+            stellar_psf_params=None, StellarPSFModel=None,
+            **self.kwargs
         )
 
     def log_likelihood_pos(self, target_image, err_map):
-        return -log_likelihood(self.model(), target_image, err_map)
+        return -log_likelihood(self.get_model(), target_image, err_map)
 
     def log_likelihood(self, target_image, err_map):
-        return log_likelihood(self.model(), target_image, err_map)
+        return log_likelihood(self.get_model(), target_image, err_map)
+    
+    def define_reference_images(self, reference_images):
+        StellarPSFReference.reference_images = reference_images
 
     def scipy_optimize(self, fit_keys, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, method=None, **kwargs): 
+                       disp_soln=False, iters=500, method=None, ftol=1e-12, gtol=1e-12, eps=1e-8, **kwargs): 
         
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
-        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
-                                    self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map)
+        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
+                                       self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
+                                       self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
+                                       target_image, err_map)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
-        soln = minimize(llp, init_x, method=method, options={'disp': True, 'max_itr': iters})
+        soln = minimize(llp, init_x, method=method, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
@@ -58,13 +75,17 @@ class Optimizer:
         return soln
     
     def scipy_bounded_optimize(self, fit_keys, fit_bounds, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, **kwargs):
-        
+                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale_for_shape = False, **kwargs):
+
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
+
+        scale = jnp.size(target_image) if scale_for_shape else 1.
         
-        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
-                                    self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map)
+        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
+                                       self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
+                                       self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
+                                       target_image, err_map, scale=scale)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -86,7 +107,7 @@ class Optimizer:
                 else:
                     bounds.append((low[0], high[0]))
             i+=1
-        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, options={'disp': True, 'max_itr': iters})
+        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
@@ -96,14 +117,22 @@ class Optimizer:
 
         self.last_fit = 'scipyboundminimize'
 
+        if isinstance(self.FuncModel, InterpolatedUnivariateSpline_SPF):
+            self.scale_spline_to_fixed_point(0, 1)
+
         return soln
 
-    def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50,continue_from=False):
+    def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50, 
+            continue_from=False, scale_for_shape=False):
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
+
+        scale = jnp.size(target_image) if scale_for_shape else 1.
         
-        ll = lambda x: objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
-                                    self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map)
+        ll = lambda x: objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
+                                     self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
+                                     self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
+                                     target_image, err_map, scale=scale)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -139,7 +168,7 @@ class Optimizer:
             print("Initial mcmc parameters are out of bounds!")
             output_string = ""
             for i in range(0, len(init_param_list)):
-                if(np.all(init_param_list[i] < init_lb_list[i]) or np.all(init_param_list[i] > init_ub_list[i])):
+                if(np.any(init_param_list[i] < init_lb_list[i]) or np.any(init_param_list[i] > init_ub_list[i])):
                     output_string += (f"{fit_keys[i]}: {init_param_list[i]}, ")
             print(output_string[0:-2])
             raise Exception("MCMC Initial Bounds Exception")
@@ -147,11 +176,25 @@ class Optimizer:
         mc_model = MCMC_model(ll, (init_lb, init_ub), self.name)
         mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns,continue_from=continue_from)
 
-        mc_soln = np.median(mc_model.sampler.flatchain, axis=0)
+        mc_soln = mc_model.get_theta_median()
         param_list = self._unflatten_params(mc_soln, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
 
         self.last_fit = 'mcmc'
+
+        # Unlogscale the internal sampler chain
+        array_lengths = [len(self._get_param_value(k)) if k in array_params else 1 for k in fit_keys]
+        OptimizeUtils.unlogscale_mcmc_model(mc_model, fit_keys, logscaled_params, array_params, array_lengths)
+
+        # Scale spline to (0, 1) if FuncModel is a spline
+        if isinstance(self.FuncModel, InterpolatedUnivariateSpline_SPF):
+            current_val = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
+                InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], 
+                                                    InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)), 0)
+            scale_factor = 1.0 / current_val if current_val != 0 else 1.0
+            self.scale_spline_to_fixed_point(0, 1)
+            
+            OptimizeUtils.scale_spline_chains(mc_model, fit_keys, array_params, array_lengths, self.spf_params, scale_factor)
 
         return mc_model
     
@@ -165,7 +208,8 @@ class Optimizer:
         self.spf_params['backscatt_bound'] = jnp.cos(jnp.deg2rad(90+self.disk_params['inclination']+buffer))
         return self.spf_params
     
-    def scale_initial_knots(self, target_image, dhg_params = [0.5, 0.5, 0.5]):
+    # Have to call this when using spline spfs
+    def initialize_knots(self, target_image, dhg_params = [0.5, 0.5, 0.5]):
         ## Get a good scaling
         y, x = np.indices(target_image.shape)
         y -= 70
@@ -175,7 +219,7 @@ class Optimizer:
 
         self.spf_params['knot_values'] = DoubleHenyeyGreenstein_SPF.compute_phase_function_from_cosphi(dhg_params, InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params))
 
-        init_image = self.model()
+        init_image = self.get_model()
 
         if self.disk_params['inclination'] > 70: 
             knot_scale = 1.*np.nanpercentile(target_image[mask], 99) / jnp.nanmax(init_image)
@@ -192,6 +236,10 @@ class Optimizer:
             #self.misc_params['flux_scaling'] = self.misc_params['flux_scaling'] / adjust_scale
         #else:
         self.scale_spline_to_fixed_point(0, 1)
+
+    def computer_stellar_psf_image(self):
+        return self.StellarPSFModel.compute_stellar_psf_image(self.StellarPSFModel.pack_pars(self.stellar_psf_params),
+                                                              self.misc_params['nx'], self.misc_params['ny'])
 
     def scale_spline_to_fixed_point(self, cosphi, spline_val):
         adjust_scale = spline_val / InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
@@ -210,7 +258,11 @@ class Optimizer:
         print("Disk Params: " + str(self.disk_params))
         print("SPF Params: " + str(self.spf_params))
         print("PSF Params: " + str(self.psf_params))
+        print("Stellar PSF Params: " + str(self.stellar_psf_params))
         print("Misc Params: " + str(self.misc_params))
+
+    def get_flux_scale(self):
+        return self.misc_params['flux_scaling']
 
     def _flatten_params(self, fit_keys, logscales, is_arrays):
         """
@@ -240,13 +292,15 @@ class Optimizer:
         param_list = []
         for i, key in enumerate(fit_keys):
             # Get parameter from appropriate dictionary
-            if key in self.disk_params:
+            if isinstance(self.disk_params, dict) and key in self.disk_params:
                 value = self.disk_params[key]
-            elif key in self.spf_params:
+            elif isinstance(self.spf_params, dict) and key in self.spf_params:
                 value = self.spf_params[key]
-            elif key in self.psf_params:
+            elif isinstance(self.psf_params, dict) and key in self.psf_params:
                 value = self.psf_params[key]
-            elif key in self.misc_params:
+            elif isinstance(self.stellar_psf_params, dict) and key in self.stellar_psf_params:
+                value = self.stellar_psf_params[key]
+            elif isinstance(self.misc_params, dict) and key in self.misc_params:
                 value = self.misc_params[key]
             else:
                 raise ValueError(f"{key} not in any of the parameter dictionaries!")
@@ -297,8 +351,8 @@ class Optimizer:
         for i, key in enumerate(fit_keys):
             if is_arrays[i]:
                 # For arrays, determine the size
-                for param_dict in [self.disk_params, self.spf_params, self.psf_params, self.misc_params]:
-                    if key in param_dict and hasattr(param_dict[key], "__len__"):
+                for param_dict in [self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params]:
+                    if isinstance(param_dict, dict) and key in param_dict and hasattr(param_dict[key], "__len__"):
                         array_size = len(param_dict[key])
                         break
                 else:
@@ -343,13 +397,15 @@ class Optimizer:
         for i, key in enumerate(fit_keys):
             value = param_values[i]
             
-            if key in self.disk_params:
+            if isinstance(self.disk_params, dict) and key in self.disk_params:
                 self.disk_params[key] = value
-            elif key in self.spf_params:
+            elif isinstance(self.spf_params, dict) and key in self.spf_params:
                 self.spf_params[key] = value
-            elif key in self.psf_params:
+            elif isinstance(self.psf_params, dict) and key in self.psf_params:
                 self.psf_params[key] = value
-            elif key in self.misc_params:
+            elif isinstance(self.stellar_psf_params, dict) and key in self.stellar_psf_params:
+                self.stellar_psf_params[key] = value
+            elif isinstance(self.misc_params, dict) and key in self.misc_params:
                 self.misc_params[key] = value
             else:
                 raise ValueError(f"{key} not in any of the parameter dictionaries!")
@@ -379,6 +435,15 @@ class Optimizer:
             for key in self.misc_params:
                 save_file.write("{}: {}\n".format(key, self.misc_params[key]))
         print("Saved human readable file to {}".format(os.path.join(dirname,'{}_{}_hrparams.txt'.format(self.name,self.last_fit))))
+
+    def _get_param_value(self, key):
+        param_dicts = [self.disk_params, self.spf_params, self.stellar_psf_params, self.misc_params]
+        if isinstance(self.psf_params, dict):
+            param_dicts.append(self.psf_params)
+        for param_dict in param_dicts:
+            if key in param_dict:
+                return param_dict[key]
+        raise KeyError(f"{key} not found in any parameter dict.")
 
     def save_machine_readable(self,dirname):
         with open(os.path.join(dirname,'{}_{}_diskparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
@@ -458,6 +523,10 @@ class OptimizeUtils:
                 noise_array[pixel[0]][pixel[1]] = noise_array[pixel[0]][pixel[1]] * 1e6 
 
         return noise_array
+    
+    @classmethod
+    def convert_dhg_params_to_spline_params(cls, g1, g2, w, spf_params):
+        return DoubleHenyeyGreenstein_SPF.compute_phase_function_from_cosphi([g1, g2, w], InterpolatedUnivariateSpline_SPF.get_knots(spf_params))
 
     @classmethod
     def process_image(cls, image, scale_factor=1, bounds = (70, 210, 70, 210)):
@@ -486,4 +555,44 @@ class OptimizeUtils:
 
         return mask
     
-    
+    @classmethod
+    def unlogscale_mcmc_model(cls, mc_model, fit_keys, logscaled_params, array_params, array_lengths):
+        flat = mc_model.sampler.flatchain.copy()
+        chain = mc_model.sampler.chain.copy()
+
+        index = 0
+        for i in range(len(fit_keys)):
+            is_log = fit_keys[i] in logscaled_params
+            is_array = fit_keys[i] in array_params
+            length = array_lengths[i] if is_array else 1
+
+            if is_log:
+                flat[:, index:index+length] = np.exp(flat[:, index:index+length])
+                chain[:, :, index:index+length] = np.exp(chain[:, :, index:index+length])
+            index += length
+
+        # Overwrite the sampler internals
+        mc_model.sampler._chain = chain
+        mc_model.sampler._flatchain = flat
+
+    @classmethod
+    def scale_spline_chains(cls, mc_model, fit_keys, array_params, array_lengths, scale_factor):
+        """Scale spline chains by a given scale factor"""
+        try:
+            knot_idx = fit_keys.index('knot_values')
+            if 'knot_values' not in array_params:
+                return
+        except ValueError:
+            return
+        
+        start_idx = sum(array_lengths[:knot_idx])
+        end_idx = start_idx + array_lengths[knot_idx]
+        
+        # Scale the chain
+        chain = mc_model.sampler.get_chain()
+        chain[:, :, start_idx:end_idx] *= scale_factor
+        
+        # Scale flux_scaling inversely if being fit
+        if 'flux_scaling' in fit_keys:
+            flux_idx = sum(array_lengths[:fit_keys.index('flux_scaling')])
+            chain[:, :, flux_idx] /= scale_factor

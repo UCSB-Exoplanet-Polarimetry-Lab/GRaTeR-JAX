@@ -64,15 +64,33 @@ class MCMC_model():
         self.sampler, self.pos, self.prob, self.state = sampler, pos, prob, state
         return sampler, pos, prob, state
 
-    def get_theta_max(self):
+    def get_theta_median(self, discard=None):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
-        return self.sampler.flatchain[np.argmax(self.sampler.flatlnprobability)]
-    
-    def get_theta_median(self):
+        
+        chain = self.sampler.get_chain()
+        total_iterations = chain.shape[0]
+        if discard is None:
+            discard = self.burn_iter
+        
+        effective_discard = min(discard, total_iterations)
+        flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
+        
+        return np.median(flatchain, axis=0)
+
+    def get_theta_max(self, discard=None):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
-        return np.median(self.sampler.flatchain, axis=0)
+        
+        if discard is None:
+            discard = self.burn_iter
+        
+        total_iterations = self.sampler.get_chain().shape[0]
+        effective_discard = min(discard, total_iterations)      
+        flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
+        flatlnprob = self.sampler.get_log_prob(discard=effective_discard, flat=True)
+        
+        return flatchain[np.argmax(flatlnprob)]
 
     def show_corner_plot(self, labels, discard=None, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
                             quiet = False):
