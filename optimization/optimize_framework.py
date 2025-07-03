@@ -26,14 +26,18 @@ class Optimizer:
 
     def get_model(self):
         return objective_model(
-            self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
-            self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel, **self.kwargs
+            self.disk_params, self.spf_params, self.psf_params, self.misc_params,
+            self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
+            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
+            **self.kwargs
         )
     
     def get_disk(self):
         return objective_model(
-            self.disk_params, self.spf_params, None, None, self.misc_params,
-            self.DiskModel, self.DistrModel, self.FuncModel, None, None, **self.kwargs
+            self.disk_params, self.spf_params, None, self.misc_params,
+            self.DiskModel, self.DistrModel, self.FuncModel, None,
+            stellar_psf_params=None, StellarPSFModel=None,
+            **self.kwargs
         )
 
     def log_likelihood_pos(self, target_image, err_map):
@@ -169,11 +173,15 @@ class Optimizer:
         mc_model = MCMC_model(ll, (init_lb, init_ub), self.name)
         mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns,continue_from=continue_from)
 
-        mc_soln = np.median(mc_model.sampler.flatchain, axis=0)
+        mc_soln = mc_model.get_theta_median()
         param_list = self._unflatten_params(mc_soln, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
 
         self.last_fit = 'mcmc'
+
+        # Unlogscale the internal sampler chain
+        array_lengths = [len(self._get_param_value(k)) if k in array_params else 1 for k in fit_keys]
+        OptimizeUtils.unlogscale_mcmc_model(mc_model, fit_keys, logscaled_params, array_params, array_lengths)
 
         return mc_model
     
@@ -238,6 +246,9 @@ class Optimizer:
         print("PSF Params: " + str(self.psf_params))
         print("Stellar PSF Params: " + str(self.stellar_psf_params))
         print("Misc Params: " + str(self.misc_params))
+
+    def get_flux_scale(self):
+        return self.misc_params['flux_scaling']
 
     def _flatten_params(self, fit_keys, logscales, is_arrays):
         """
@@ -411,6 +422,15 @@ class Optimizer:
                 save_file.write("{}: {}\n".format(key, self.misc_params[key]))
         print("Saved human readable file to {}".format(os.path.join(dirname,'{}_{}_hrparams.txt'.format(self.name,self.last_fit))))
 
+    def _get_param_value(self, key):
+        param_dicts = [self.disk_params, self.spf_params, self.stellar_psf_params, self.misc_params]
+        if isinstance(self.psf_params, dict):
+            param_dicts.append(self.psf_params)
+        for param_dict in param_dicts:
+            if key in param_dict:
+                return param_dict[key]
+        raise KeyError(f"{key} not found in any parameter dict.")
+
     def save_machine_readable(self,dirname):
         with open(os.path.join(dirname,'{}_{}_diskparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
             json.dump(self.disk_params, save_file)
@@ -517,4 +537,22 @@ class OptimizeUtils:
 
         return mask
     
-    
+    @classmethod
+    def unlogscale_mcmc_model(cls, mc_model, fit_keys, logscaled_params, array_params, array_lengths):
+        flat = mc_model.sampler.flatchain.copy()
+        chain = mc_model.sampler.chain.copy()
+
+        index = 0
+        for i in range(len(fit_keys)):
+            is_log = fit_keys[i] in logscaled_params
+            is_array = fit_keys[i] in array_params
+            length = array_lengths[i] if is_array else 1
+
+            if is_log:
+                flat[:, index:index+length] = np.exp(flat[:, index:index+length])
+                chain[:, :, index:index+length] = np.exp(chain[:, :, index:index+length])
+            index += length
+
+        # Overwrite the sampler internals
+        mc_model.sampler._chain = chain
+        mc_model.sampler._flatchain = flat
