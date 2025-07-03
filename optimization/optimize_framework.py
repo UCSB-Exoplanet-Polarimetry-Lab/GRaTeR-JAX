@@ -76,7 +76,7 @@ class Optimizer:
     
     def scipy_bounded_optimize(self, fit_keys, fit_bounds, logscaled_params, array_params, target_image, err_map,
                        disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale_for_shape = False, **kwargs):
-        
+
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
@@ -116,6 +116,9 @@ class Optimizer:
             print(soln)
 
         self.last_fit = 'scipyboundminimize'
+
+        if isinstance(self.FuncModel, InterpolatedUnivariateSpline_SPF):
+            self.scale_spline_to_fixed_point(0, 1)
 
         return soln
 
@@ -183,6 +186,16 @@ class Optimizer:
         array_lengths = [len(self._get_param_value(k)) if k in array_params else 1 for k in fit_keys]
         OptimizeUtils.unlogscale_mcmc_model(mc_model, fit_keys, logscaled_params, array_params, array_lengths)
 
+        # Scale spline to (0, 1) if FuncModel is a spline
+        if isinstance(self.FuncModel, InterpolatedUnivariateSpline_SPF):
+            current_val = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
+                InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], 
+                                                    InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)), 0)
+            scale_factor = 1.0 / current_val if current_val != 0 else 1.0
+            self.scale_spline_to_fixed_point(0, 1)
+            
+            OptimizeUtils.scale_spline_chains(mc_model, fit_keys, array_params, array_lengths, self.spf_params, scale_factor)
+
         return mc_model
     
     def inc_bound_knots(self, buffer = 0):
@@ -195,7 +208,8 @@ class Optimizer:
         self.spf_params['backscatt_bound'] = jnp.cos(jnp.deg2rad(90+self.disk_params['inclination']+buffer))
         return self.spf_params
     
-    def scale_initial_knots(self, target_image, dhg_params = [0.5, 0.5, 0.5]):
+    # Have to call this when using spline spfs
+    def initialize_knots(self, target_image, dhg_params = [0.5, 0.5, 0.5]):
         ## Get a good scaling
         y, x = np.indices(target_image.shape)
         y -= 70
@@ -556,3 +570,25 @@ class OptimizeUtils:
         # Overwrite the sampler internals
         mc_model.sampler._chain = chain
         mc_model.sampler._flatchain = flat
+
+    @classmethod
+    def scale_spline_chains(cls, mc_model, fit_keys, array_params, array_lengths, scale_factor):
+        """Scale spline chains by a given scale factor"""
+        try:
+            knot_idx = fit_keys.index('knot_values')
+            if 'knot_values' not in array_params:
+                return
+        except ValueError:
+            return
+        
+        start_idx = sum(array_lengths[:knot_idx])
+        end_idx = start_idx + array_lengths[knot_idx]
+        
+        # Scale the chain
+        chain = mc_model.sampler.get_chain()
+        chain[:, :, start_idx:end_idx] *= scale_factor
+        
+        # Scale flux_scaling inversely if being fit
+        if 'flux_scaling' in fit_keys:
+            flux_idx = sum(array_lengths[:fit_keys.index('flux_scaling')])
+            chain[:, :, flux_idx] /= scale_factor
