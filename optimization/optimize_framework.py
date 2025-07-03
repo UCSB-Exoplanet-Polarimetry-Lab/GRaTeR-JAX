@@ -247,6 +247,9 @@ class Optimizer:
         print("Stellar PSF Params: " + str(self.stellar_psf_params))
         print("Misc Params: " + str(self.misc_params))
 
+    def get_flux_scale(self):
+        return self.misc_params['flux_scaling']
+
     def _flatten_params(self, fit_keys, logscales, is_arrays):
         """
         Flatten parameters into a 1D array for optimization.
