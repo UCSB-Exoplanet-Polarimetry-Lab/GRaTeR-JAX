@@ -304,9 +304,9 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
 
     return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
 
-def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
-                       DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
-                       scale = 1., **kwargs):
+def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
+                       DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,stellar_psf_params=None, StellarPSFModel=None, 
+                       **kwargs):
     """
     Objective function for optimization that updates only the selected parameters.
     """
