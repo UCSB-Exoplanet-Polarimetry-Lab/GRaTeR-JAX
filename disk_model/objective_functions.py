@@ -236,9 +236,9 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
     Objective function for optimization that updates only the selected parameters.
     """
 
-    if StellarPSFModel == None:
+    if StellarPSFModel is None:
         stellar_psf_params = 0.
-    if PSFModel == None:
+    if PSFModel is None:
         psf_params = 0.
     
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
@@ -311,9 +311,9 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, ste
     Objective function for optimization that updates only the selected parameters.
     """
 
-    if StellarPSFModel == None:
+    if StellarPSFModel is None:
         stellar_psf_params = 0.
-    if PSFModel == None:
+    if PSFModel is None:
         psf_params = 0.
 
     # These temporary dictionaries are edited based on params_fit
