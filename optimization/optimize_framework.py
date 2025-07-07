@@ -451,7 +451,7 @@ class Optimizer:
         with open(os.path.join(dirname,'{}_{}_spfparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
             serializable_spf = {}
             for key, value in self.spf_params.items():
-                if isinstance(value, jnp.ndarray):
+                if isinstance(value, jnp.ndarray) or isinstance(value, np.ndarray):
                     serializable_spf[key] = value.tolist()
                 else:
                     serializable_spf[key] = value
@@ -461,7 +461,7 @@ class Optimizer:
         with open(os.path.join(dirname,'{}_{}_miscparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
             serializable_misc = {}
             for key, value in self.misc_params.items():
-                if isinstance(value, jnp.ndarray):
+                if isinstance(value, jnp.ndarray) or isinstance(value, np.ndarray):
                     serializable_misc[key] = value.tolist()
                 else:
                     serializable_misc[key] = value
