@@ -616,6 +616,101 @@ def objective_grad(params_fit, fit_keys, disk_params, spf_params, psf_params, st
                        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
                        scale = 1., **kwargs):
     
-    
+    if StellarPSFModel is None:
+        stellar_psf_params = 0.
+    if PSFModel is None:
+        psf_params = 0.
 
-    return None
+    # These temporary dictionaries are edited based on params_fit
+    temp_disk_params = disk_params.copy() if isinstance(disk_params, dict) else {}
+    temp_spf_params = spf_params.copy() if isinstance(spf_params, dict) else {}
+    temp_psf_params = psf_params.copy() if isinstance(psf_params, dict) else {}
+    temp_stellar_psf_params = stellar_psf_params.copy() if isinstance(stellar_psf_params, dict) else {}
+    temp_misc_params = misc_params.copy() if isinstance(misc_params, dict) else {}
+
+    # Corresponding index of params_fit for each key in fit_keys
+    param_index = 0
+
+    for key in fit_keys:
+        if key in temp_disk_params:
+            temp_disk_params[key] = params_fit[param_index]
+        elif key in temp_spf_params:
+            temp_spf_params[key] = params_fit[param_index]
+        elif key in temp_psf_params:
+            temp_psf_params[key] = params_fit[param_index]
+        elif key in temp_stellar_psf_params:
+            temp_stellar_psf_params[key] = params_fit[param_index]
+        elif key in temp_misc_params:
+            temp_misc_params[key] = params_fit[param_index]
+        param_index += 1
+
+    if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
+        gradients = jax_model_scalar(
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
+            pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else spf_params,
+            PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling']
+        )
+    elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
+        gradients = jax_model_winnie(
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
+            pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else temp_spf_params['knot_values'],
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling']
+        )
+    elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
+
+        gradients = jax_model_spline(
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
+            pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            temp_spf_params['knot_values'],
+            PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
+        )
+    else:
+        gradients = jax_model_spline_winnie(
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
+            pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            temp_spf_params['knot_values'],
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
+        )
+
+    # Unpack gradients
+    grad_disk, grad_spf = gradients[0], gradients[1]
+    grad_psf = gradients[2] if len(gradients) > 3 else None
+    grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2] if len(gradients) == 3 else None
+
+    # Build a flat list of gradients in the same order as fit_keys
+    flat_gradients = []
+    for key in fit_keys:
+        if key in disk_params:
+            idx = list(disk_params.keys()).index(key)
+            flat_gradients.append(grad_disk[idx])
+        elif key in spf_params:
+            idx = list(spf_params.keys()).index(key)
+            flat_gradients.append(grad_spf[idx])
+        elif psf_params != 0 and key in psf_params:
+            idx = list(psf_params.keys()).index(key)
+            flat_gradients.append(grad_psf[idx])
+        elif stellar_psf_params != 0 and key in stellar_psf_params:
+            idx = list(stellar_psf_params.keys()).index(key)
+            flat_gradients.append(grad_stellar[idx])
+
+    return jnp.array(flat_gradients)

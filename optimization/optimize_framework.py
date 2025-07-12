@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from disk_model.SLD_utils import *
 from scipy.optimize import minimize
 from optimization.mcmc_model import MCMC_model
-from disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood
+from disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood, objective_grad
 import json
 
 # Built for new objective function
