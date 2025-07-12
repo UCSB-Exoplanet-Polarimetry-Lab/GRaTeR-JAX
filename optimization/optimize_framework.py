@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from disk_model.SLD_utils import *
 from scipy.optimize import minimize
 from optimization.mcmc_model import MCMC_model
-from disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood, objective_grad
+from disk_model.objective_functions import objective_model, objective_fit, log_likelihood, objective_grad, objective_fit_grad
 import json
 
 # Built for new objective function
@@ -30,6 +30,13 @@ class Optimizer:
             self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
             stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
             **self.kwargs
+        )
+    
+    def get_gradient(self, keys, target_image, err_map):
+        return objective_grad(
+            keys, self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params,
+            self.misc_params, self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
+            self.StellarPSFModel, target_image, err_map, **self.kwargs
         )
     
     def get_disk(self):

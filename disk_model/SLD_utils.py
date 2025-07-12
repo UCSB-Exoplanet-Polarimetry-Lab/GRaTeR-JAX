@@ -364,7 +364,7 @@ class GAUSSIAN_PSF(Jax_class):
 class EMP_PSF(Jax_class):
     """empirical PSF function by default uses the GPI H band PSF -- you can change this to any PSF you want!
     to do so, you'll need to change the process_image function below to point to the PSF fits file you want to use"""
-    params = {'scale_factor': 1, 'offset': 1}
+    params = {'scale_factor': 1.0, 'offset': 1.0}
 
     def process_image(image, scale_factor=1, offset=1):
         """
