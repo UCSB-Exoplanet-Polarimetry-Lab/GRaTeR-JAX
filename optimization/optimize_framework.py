@@ -76,8 +76,7 @@ class Optimizer:
         StellarPSFReference.reference_images = reference_images
 
     def scipy_optimize(self, fit_keys, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, method=None, ftol=1e-12, gtol=1e-12, eps=1e-8,
-                       use_grad = False, **kwargs): 
+                       disp_soln=False, iters=500, method=None, ftol=1e-12, gtol=1e-12, eps=1e-8, **kwargs): 
         
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
@@ -86,35 +85,23 @@ class Optimizer:
                                        self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
                                        self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
                                        target_image, err_map)
-
-        grad_func = None
-
-        if use_grad:
-            grad_func = lambda x: -objective_fit_grad(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
-                                       self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
-                                       self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
-                                       target_image, err_map)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
-        soln = minimize(llp, init_x, method=method, jac=grad_func, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
+        soln = minimize(llp, init_x, method=method, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
 
-        self.last_fit = 'scipyminimize'
-
-        if isinstance(self.FuncModel, InterpolatedUnivariateSpline_SPF):
-            self.scale_spline_to_fixed_point(0, 1)
-
         if disp_soln:
             print(soln)
+
+        self.last_fit = 'scipyminimize'
 
         return soln
     
     def scipy_bounded_optimize(self, fit_keys, fit_bounds, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale_for_shape = False,
-                       use_grad=False, **kwargs):
+                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale_for_shape = False, **kwargs):
 
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
@@ -125,14 +112,6 @@ class Optimizer:
                                        self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
                                        self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
                                        target_image, err_map, scale=scale)
-        
-        grad_func = None
-
-        if use_grad:
-            grad_func = lambda x: -objective_fit_grad(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
-                                       self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
-                                       self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
-                                       target_image, err_map)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -154,18 +133,18 @@ class Optimizer:
                 else:
                     bounds.append((low[0], high[0]))
             i+=1
-        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, jac=grad_func, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
+        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
+
+        if disp_soln:
+            print(soln)
 
         self.last_fit = 'scipyboundminimize'
 
         if isinstance(self.FuncModel, InterpolatedUnivariateSpline_SPF):
             self.scale_spline_to_fixed_point(0, 1)
-
-        if disp_soln:
-            print(soln)
 
         return soln
 

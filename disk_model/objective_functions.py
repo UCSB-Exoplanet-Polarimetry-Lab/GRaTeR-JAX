@@ -31,7 +31,7 @@ def pack_pars(p_dict, orig_dict):
 @jax.jit
 def log_likelihood(image, target_image, err_map):
     sigma2 = jnp.power(err_map, 2)
-    result = jnp.power((target_image - image), 2) / (sigma2 + 1e-14) + jnp.log(sigma2 + 1e-14)
+    result = jnp.power((target_image - image), 2) / (sigma2) + jnp.log(sigma2)
     result = jnp.where(jnp.isnan(result), 0, result)
 
     return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
@@ -607,14 +607,7 @@ def jax_model_spline_winnie_scalar(DiskModel, DistrModel, FuncModel, winnie_psf,
 
     return -log_likelihood(scattered_light_image, target_image, err_map)
 
-# jax_model_grad = jax.jit(jax.grad(jax_model_scalar, argnums=(5, 6, 7)),
-#                          static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-# jax_model_winnie_grad = jax.jit(jax.grad(jax_model_winnie_scalar, argnums=(5, 6)),
-#                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-# jax_model_spline_grad = jax.jit(jax.grad(jax_model_spline_scalar, argnums=(5, 6, 7)),
-#                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-# jax_model_spline_winnie_grad = jax.jit(jax.grad(jax_model_spline_winnie_scalar, argnums=(5, 6)),
-#                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+# JAX GRADS
 
 jax_model_grad = jax.grad(jax_model_scalar, argnums=(5, 6))
 jax_model_winnie_grad = jax.grad(jax_model_winnie_scalar, argnums=(5, 6))
