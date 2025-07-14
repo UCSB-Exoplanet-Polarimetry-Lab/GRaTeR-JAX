@@ -31,7 +31,7 @@ def pack_pars(p_dict, orig_dict):
 @jax.jit
 def log_likelihood(image, target_image, err_map):
     sigma2 = jnp.power(err_map, 2)
-    result = jnp.power((target_image - image), 2) / sigma2 + jnp.log(sigma2)
+    result = jnp.power((target_image - image), 2) / sigma2 + jnp.log(sigma2 + 1e-14)
     result = jnp.where(jnp.isnan(result), 0, result)
 
     return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
@@ -42,7 +42,7 @@ def residuals(target_image,err_map,model_image):
     residuals for use in objective function
     """
     sigma2 = jnp.power(err_map, 2)
-    result = jnp.power((target_image - model_image), 2) / sigma2 + jnp.log(sigma2)
+    result = jnp.power((target_image - model_image), 2) / sigma2 + jnp.log(sigma2 + 1e-14)
     result = jnp.where(jnp.isnan(result), 0, result)
     return result
 
@@ -101,7 +101,7 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
-    scattered_light_image*flux_scaling
+    scattered_light_image = scattered_light_image*flux_scaling
 
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
@@ -147,7 +147,7 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
 
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
 
-    scattered_light_image*flux_scaling
+    scattered_light_image = scattered_light_image*flux_scaling
 
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
@@ -455,7 +455,7 @@ def jax_model_scalar(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
-    scattered_light_image*flux_scaling
+    scattered_light_image = scattered_light_image*flux_scaling
 
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
@@ -501,7 +501,7 @@ def jax_model_winnie_scalar(DiskModel, DistrModel, FuncModel, winnie_psf, Stella
 
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
 
-    scattered_light_image*flux_scaling
+    scattered_light_image = scattered_light_image*flux_scaling
 
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
@@ -607,10 +607,19 @@ def jax_model_spline_winnie_scalar(DiskModel, DistrModel, FuncModel, winnie_psf,
 
     return -log_likelihood(scattered_light_image, target_image, err_map)
 
-jax_model_grad = jax.grad(jax_model_scalar, argnums=(5, 6, 7, 8))
-jax_model_winnie_grad = jax.grad(jax_model_winnie_scalar, argnums=(5, 6, 7))
-jax_model_spline_grad = jax.grad(jax_model_spline_scalar, argnums=(5, 6, 7, 8))
-jax_model_spline_winnie_grad = jax.grad(jax_model_spline_winnie_scalar, argnums=(5, 6, 7))
+# jax_model_grad = jax.jit(jax.grad(jax_model_scalar, argnums=(5, 6, 7)),
+#                          static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+# jax_model_winnie_grad = jax.jit(jax.grad(jax_model_winnie_scalar, argnums=(5, 6)),
+#                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+# jax_model_spline_grad = jax.jit(jax.grad(jax_model_spline_scalar, argnums=(5, 6, 7)),
+#                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+# jax_model_spline_winnie_grad = jax.jit(jax.grad(jax_model_spline_winnie_scalar, argnums=(5, 6)),
+#                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+
+jax_model_grad = jax.grad(jax_model_scalar, argnums=(5, 6, 7))
+jax_model_winnie_grad = jax.grad(jax_model_winnie_scalar, argnums=(5, 6))
+jax_model_spline_grad = jax.grad(jax_model_spline_scalar, argnums=(5, 6, 7))
+jax_model_spline_winnie_grad = jax.grad(jax_model_spline_winnie_scalar, argnums=(5, 6))
 
 def objective_grad(keys, disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
@@ -671,8 +680,8 @@ def objective_grad(keys, disk_params, spf_params, psf_params, stellar_psf_params
 
     # Unpack gradients
     grad_disk, grad_spf = gradients[0], gradients[1]
-    grad_psf = gradients[2] if len(gradients) > 3 else None
-    grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2] if len(gradients) == 3 else None
+    #grad_psf = gradients[2] if len(gradients) > 2 else None
+    #grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2] if len(gradients) == 3 else None
 
     # Build a flat list of gradients in the same order as fit_keys
     flat_gradients = []
@@ -683,12 +692,12 @@ def objective_grad(keys, disk_params, spf_params, psf_params, stellar_psf_params
         elif key in spf_params:
             idx = list(spf_params.keys()).index(key)
             flat_gradients.append(grad_spf[idx])
-        elif psf_params != 0 and key in psf_params:
-            idx = list(psf_params.keys()).index(key)
-            flat_gradients.append(grad_psf[idx])
-        elif stellar_psf_params != 0 and key in stellar_psf_params:
-            idx = list(stellar_psf_params.keys()).index(key)
-            flat_gradients.append(grad_stellar[idx])
+        #elif psf_params != 0 and key in psf_params:
+        #    idx = list(psf_params.keys()).index(key)
+        #    flat_gradients.append(grad_psf[idx])
+        #elif stellar_psf_params != 0 and key in stellar_psf_params:
+        #    idx = list(stellar_psf_params.keys()).index(key)
+        #    flat_gradients.append(grad_stellar[idx])
 
     return jnp.array(flat_gradients)
 
