@@ -31,7 +31,7 @@ def pack_pars(p_dict, orig_dict):
 @jax.jit
 def log_likelihood(image, target_image, err_map):
     sigma2 = jnp.power(err_map, 2)
-    result = jnp.power((target_image - image), 2) / sigma2 + jnp.log(sigma2 + 1e-14)
+    result = jnp.power((target_image - image), 2) / (sigma2 + 1e-14) + jnp.log(sigma2 + 1e-14)
     result = jnp.where(jnp.isnan(result), 0, result)
 
     return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
@@ -42,7 +42,7 @@ def residuals(target_image,err_map,model_image):
     residuals for use in objective function
     """
     sigma2 = jnp.power(err_map, 2)
-    result = jnp.power((target_image - model_image), 2) / sigma2 + jnp.log(sigma2 + 1e-14)
+    result = jnp.power((target_image - model_image), 2) / (sigma2 + 1e-14) + jnp.log(sigma2 + 1e-14)
     result = jnp.where(jnp.isnan(result), 0, result)
     return result
 
@@ -616,9 +616,9 @@ def jax_model_spline_winnie_scalar(DiskModel, DistrModel, FuncModel, winnie_psf,
 # jax_model_spline_winnie_grad = jax.jit(jax.grad(jax_model_spline_winnie_scalar, argnums=(5, 6)),
 #                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
 
-jax_model_grad = jax.grad(jax_model_scalar, argnums=(5, 6, 7))
+jax_model_grad = jax.grad(jax_model_scalar, argnums=(5, 6))
 jax_model_winnie_grad = jax.grad(jax_model_winnie_scalar, argnums=(5, 6))
-jax_model_spline_grad = jax.grad(jax_model_spline_scalar, argnums=(5, 6, 7))
+jax_model_spline_grad = jax.grad(jax_model_spline_scalar, argnums=(5, 6))
 jax_model_spline_winnie_grad = jax.grad(jax_model_spline_winnie_scalar, argnums=(5, 6))
 
 def objective_grad(keys, disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
@@ -679,7 +679,8 @@ def objective_grad(keys, disk_params, spf_params, psf_params, stellar_psf_params
         )
 
     # Unpack gradients
-    grad_disk, grad_spf = gradients[0], gradients[1]
+    grad_disk = gradients[0]
+    grad_spf = gradients[1]
     #grad_psf = gradients[2] if len(gradients) > 2 else None
     #grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2] if len(gradients) == 3 else None
 
