@@ -14,6 +14,7 @@ class MCMC_model():
         self.name = name
         self.burn_iter = 100
         self.nwalkers = None
+        self.scaled_chain = None
 
     def _lnprior(self, theta):
         if np.all(theta > self.theta_bounds[0]) and np.all(theta < self.theta_bounds[1]):
@@ -31,7 +32,7 @@ class MCMC_model():
         return lp + self.fun(theta)
 
     def run(self, initial, nwalkers=500, niter = 500, burn_iter = 100, nconst = 1e-7, continue_from=None, **kwargs):
-
+        ##can change moves with **kwargs option, see emcee documentation
         self.ndim = len(initial)
         self.nwalkers = nwalkers
         self.niter = niter
@@ -63,58 +64,67 @@ class MCMC_model():
         
         self.sampler, self.pos, self.prob, self.state = sampler, pos, prob, state
         return sampler, pos, prob, state
+    
+    def set_discarded_iters(self, new_burn_iters):
+        if isinstance(new_burn_iters, int) and new_burn_iters >= 0:
+            self.burn_iter = new_burn_iters
+        else:
+            raise ValueError("Input valid discard value (int>=0)")
 
-    def get_theta_median(self, discard=None):
-        if (self.sampler == None):
+    def get_theta_median(self, scaled = False):
+        if self.sampler is None:
             raise Exception("Need to run model first!")
-        
-        chain = self.sampler.get_chain()
-        total_iterations = chain.shape[0]
-        if discard is None:
-            discard = self.burn_iter
-        
-        effective_discard = min(discard, total_iterations)
-        flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
-        
+        flatchain = self.scaled_chain.reshape((-1, self.ndim)) if scaled else self._get_flatchain()
         return np.median(flatchain, axis=0)
 
-    def get_theta_max(self, discard=None):
-        if (self.sampler == None):
+    def get_theta_percs(self, scaled = False):
+        if self.sampler is None:
             raise Exception("Need to run model first!")
-        
-        if discard is None:
-            discard = self.burn_iter
-        
-        total_iterations = self.sampler.get_chain().shape[0]
-        effective_discard = min(discard, total_iterations)      
-        flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
-        flatlnprob = self.sampler.get_log_prob(discard=effective_discard, flat=True)
-        
-        return flatchain[np.argmax(flatlnprob)]
+        flatchain = self._get_flatchain(scaled = scaled)
+        return np.percentile(flatchain, [16, 50, 84], axis=0)
+
+    def get_theta_max(self, scaled=False):
+        if self.sampler is None:
+            raise Exception("Need to run model first!")
+
+        # Always get unscaled flatchain for indexing and log-prob matching
+        unscaled_flatchain = self._get_flatchain(scaled=False)
+        flatlnprob = self._get_flatlogprob()
+        max_idx = np.argmax(flatlnprob)
+
+        if scaled:
+            if self.scaled_chain is None:
+                raise ValueError("Scaled chain has not been set.")
+            scaled_flatchain = self._get_flatchain(scaled=True)
+            return scaled_flatchain[max_idx]
+        else:
+            return unscaled_flatchain[max_idx]
 
     def show_corner_plot(self, labels, discard=None, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
-                            quiet = False):
+                            quiet = False, scaled = False):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
         if discard is None:
             discard = self.burn_iter
-        fig = corner.corner(self.sampler.flatchain[int(discard*self.nwalkers):,:],truths=truths, show_titles=show_titles,labels=labels,
+
+        flatchain = self._get_flatchain(scaled=scaled)
+        fig = corner.corner(flatchain,truths=truths, show_titles=show_titles,labels=labels,
                                 plot_datapoints=plot_datapoints,quantiles=quantiles, quiet=quiet)
 
-    def plot_chains(self, labels, cols_per_row = 3):
+    def plot_chains(self, labels, cols_per_row = 3, scaled = False):
         if self.sampler is None:
             raise Exception("Need to run model first!")
         
-        chain = self.sampler.get_chain()  # shape: (niter, nwalkers, ndim)
-        n_params = chain.shape[2]
+        chain = self._get_chain(scaled=scaled)  # shape: (niter, nwalkers, ndim)
+        niter, nwalkers, n_params = chain.shape
         n_rows = int(np.ceil(n_params / cols_per_row))
         fig, axes = plt.subplots(n_rows, cols_per_row, figsize=(6 * cols_per_row, 4 * n_rows), squeeze=False)
         fig.subplots_adjust(hspace=0.4)
 
-        x = np.arange(np.shape(chain)[0])
+        x = np.arange(niter)
         for idx in range(n_params):
             i, j = divmod(idx, cols_per_row)
-            for walker in range(self.nwalkers):
+            for walker in range(nwalkers):
                 axes[i][j].plot(x, chain[:, walker, idx], alpha=0.5)
             axes[i][j].set_title(labels[idx])
         plt.show()
@@ -171,3 +181,32 @@ class MCMC_model():
         taus = 2.0 * np.cumsum(f) - 1.0
         window = self._auto_window(taus, c)
         return taus[window]
+    
+    def _get_chain(self, scaled=False):
+        """Get the 3D MCMC chain (niter, nwalkers, ndim), with burn-in discarded, optionally using scaled chain."""
+        if self.sampler is None:
+            raise Exception("Need to run model first!")
+
+        discard = min(self.burn_iter, self.sampler.get_chain().shape[0])
+
+        if scaled:
+            if self.scaled_chain is None:
+                raise ValueError("Scaled chain has not been set.")
+            return self.scaled_chain[discard:, :, :]
+        else:
+            return self.sampler.get_chain(discard=discard)
+
+    def _get_flatchain(self, scaled=False):
+        """Get flattened chain (niter * nwalkers, ndim), with burn-in discarded, optionally scaled."""
+        chain = self._get_chain(scaled=scaled)
+        return chain.reshape((-1, self.ndim))
+
+    def _get_flatlogprob(self):
+        """Get flattened log-probability array (niter * nwalkers,) after discarding burn-in."""
+        if self.sampler is None:
+            raise Exception("Need to run model first!")
+        
+        total_iterations = self.sampler.get_chain().shape[0]
+        discard = min(self.burn_iter, total_iterations)
+        return self.sampler.get_log_prob(discard=discard, flat=True)
+

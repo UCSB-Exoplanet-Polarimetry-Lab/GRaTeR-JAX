@@ -398,7 +398,7 @@ class EMP_PSF(Jax_class):
     @classmethod
     @partial(jax.jit, static_argnums=(0))
     def generate(cls, image, psf_params):
-        return jss.convolve2d(image, cls.img, mode='same')
+        return jss.fftconvolve(image, cls.img, mode='same')
 
 class Winnie_PSF(Jax_class):
     """

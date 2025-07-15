@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from disk_model.SLD_utils import *
 from scipy.optimize import minimize
 from optimization.mcmc_model import MCMC_model
-from disk_model.objective_functions import objective_model, objective_fit, log_likelihood, objective_grad, objective_fit_grad
+from disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood, objective_grad
 import json
 
 # Built for new objective function
@@ -149,7 +149,7 @@ class Optimizer:
         return soln
 
     def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50, 
-            continue_from=False, scale_for_shape=False):
+            continue_from=False, scale_for_shape=False,**kwargs):
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
@@ -200,7 +200,7 @@ class Optimizer:
             raise Exception("MCMC Initial Bounds Exception")
 
         mc_model = MCMC_model(ll, (init_lb, init_ub), self.name)
-        mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns,continue_from=continue_from)
+        mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns,continue_from=continue_from,**kwargs)
 
         mc_soln = mc_model.get_theta_median()
         param_list = self._unflatten_params(mc_soln, fit_keys, logscales, is_arrays)
@@ -210,7 +210,7 @@ class Optimizer:
 
         # Unlogscale the internal sampler chain
         array_lengths = [len(self._get_param_value(k)) if k in array_params else 1 for k in fit_keys]
-        OptimizeUtils.unlogscale_mcmc_model(mc_model, fit_keys, logscaled_params, array_params, array_lengths)
+        mcmc_model = OptimizeUtils.unlogscale_mcmc_model(mc_model, fit_keys, logscaled_params, array_params, array_lengths)
 
         # Scale spline to (0, 1) if FuncModel is a spline
         if isinstance(self.FuncModel, InterpolatedUnivariateSpline_SPF):
@@ -219,6 +219,8 @@ class Optimizer:
                                                     InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)), 0)
             scale_factor = 1.0 / current_val if current_val != 0 else 1.0
             self.scale_spline_to_fixed_point(0, 1)
+
+            print(scale_factor)
             
             OptimizeUtils.scale_spline_chains(mc_model, fit_keys, array_params, array_lengths, self.spf_params, scale_factor)
 
@@ -233,24 +235,6 @@ class Optimizer:
         self.spf_params['forwardscatt_bound'] = jnp.cos(jnp.deg2rad(90-self.disk_params['inclination']-buffer))
         self.spf_params['backscatt_bound'] = jnp.cos(jnp.deg2rad(90+self.disk_params['inclination']+buffer))
         return self.spf_params
-    
-    # Have to call this when using henyey greenstein spfs
-    def initialize_flux_from_hg_params(self, target_image):
-        ## Get a good scaling
-        y, x = np.indices(target_image.shape)
-        y -= 70
-        x -= 70 
-        rads = np.sqrt(x**2+y**2)
-        mask = (rads > 12)
-
-        init_image = self.get_model()
-
-        if self.disk_params['inclination'] > 70: 
-            spf_scale = 1.*np.nanpercentile(target_image[mask], 99) / jnp.nanmax(init_image)
-        else: 
-            spf_scale = 0.2*np.nanpercentile(target_image[mask], 99) / jnp.nanmax(init_image)
-            
-        self.misc_params['flux_scaling'] = self.misc_params['flux_scaling'] * spf_scale
     
     # Have to call this when using spline spfs
     def initialize_knots(self, target_image, dhg_params = [0.5, 0.5, 0.5]):
@@ -495,7 +479,7 @@ class Optimizer:
         with open(os.path.join(dirname,'{}_{}_spfparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
             serializable_spf = {}
             for key, value in self.spf_params.items():
-                if isinstance(value, jnp.ndarray):
+                if isinstance(value, jnp.ndarray) or isinstance(value, np.ndarray):
                     serializable_spf[key] = value.tolist()
                 else:
                     serializable_spf[key] = value
@@ -505,7 +489,7 @@ class Optimizer:
         with open(os.path.join(dirname,'{}_{}_miscparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
             serializable_misc = {}
             for key, value in self.misc_params.items():
-                if isinstance(value, jnp.ndarray):
+                if isinstance(value, jnp.ndarray) or isinstance(value, np.ndarray):
                     serializable_misc[key] = value.tolist()
                 else:
                     serializable_misc[key] = value
@@ -607,13 +591,11 @@ class OptimizeUtils:
             length = array_lengths[i] if is_array else 1
 
             if is_log:
-                flat[:, index:index+length] = np.exp(flat[:, index:index+length])
                 chain[:, :, index:index+length] = np.exp(chain[:, :, index:index+length])
             index += length
 
         # Overwrite the sampler internals
-        mc_model.sampler._chain = chain
-        mc_model.sampler._flatchain = flat
+        mc_model.scaled_chain = chain
 
     @classmethod
     def scale_spline_chains(cls, mc_model, fit_keys, array_params, array_lengths, scale_factor):
@@ -629,10 +611,12 @@ class OptimizeUtils:
         end_idx = start_idx + array_lengths[knot_idx]
         
         # Scale the chain
-        chain = mc_model.sampler.get_chain()
+        chain = mc_model.sampler.get_chain().copy()
         chain[:, :, start_idx:end_idx] *= scale_factor
         
         # Scale flux_scaling inversely if being fit
         if 'flux_scaling' in fit_keys:
             flux_idx = sum(array_lengths[:fit_keys.index('flux_scaling')])
             chain[:, :, flux_idx] /= scale_factor
+
+        mc_model.scaled_chain = chain
