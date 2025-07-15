@@ -1,1 +1,0 @@
-import disk_model.SLD_ojax as SLD_ojax
