@@ -31,7 +31,7 @@ class MCMC_model():
         return lp + self.fun(theta)
 
     def run(self, initial, nwalkers=500, niter = 500, burn_iter = 100, nconst = 1e-7, continue_from=None, **kwargs):
-
+        ##can change moves with **kwargs option, see emcee documentation
         self.ndim = len(initial)
         self.nwalkers = nwalkers
         self.niter = niter
