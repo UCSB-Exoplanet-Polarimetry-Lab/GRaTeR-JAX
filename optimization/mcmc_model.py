@@ -77,6 +77,20 @@ class MCMC_model():
         flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
         
         return np.median(flatchain, axis=0)
+    
+    def get_theta_percs(self, discard=None):
+        if (self.sampler == None):
+            raise Exception("Need to run model first!")
+        
+        chain = self.sampler.get_chain()
+        total_iterations = chain.shape[0]
+        if discard is None:
+            discard = self.burn_iter
+
+        effective_discard = min(discard, total_iterations)
+        flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
+
+        return np.percentile(flatchain, [16, 50, 84], axis=0)
 
     def get_theta_max(self, discard=None):
         if (self.sampler == None):
