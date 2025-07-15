@@ -70,11 +70,19 @@ class MCMC_model():
         
         chain = self.sampler.get_chain()
         total_iterations = chain.shape[0]
+        original_burn_iter = self.burn_iter
+
         if discard is None:
             discard = self.burn_iter
+        elif isinstance(discard, int) and discard >= 0:
+            self.burn_iter = discard
+        else:
+            raise ValueError("Input valid discard value (int>=0)")
         
         effective_discard = min(discard, total_iterations)
         flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
+
+        self.burn_iter = original_burn_iter
         
         return np.median(flatchain, axis=0)
     
@@ -84,11 +92,19 @@ class MCMC_model():
         
         chain = self.sampler.get_chain()
         total_iterations = chain.shape[0]
+        original_burn_iter = self.burn_iter
+
         if discard is None:
             discard = self.burn_iter
+        elif isinstance(discard, int) and discard >= 0:
+            self.burn_iter = discard
+        else:
+            raise ValueError("Input valid discard value (int>=0)")
 
         effective_discard = min(discard, total_iterations)
         flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
+
+        self.burn_iter = original_burn_iter
 
         return np.percentile(flatchain, [16, 50, 84], axis=0)
 
@@ -96,14 +112,22 @@ class MCMC_model():
         if (self.sampler == None):
             raise Exception("Need to run model first!")
         
+        total_iterations = self.sampler.get_chain().shape[0]
+        original_burn_iter = self.burn_iter
+
         if discard is None:
             discard = self.burn_iter
+        elif isinstance(discard, int) and discard >= 0:
+            self.burn_iter = discard
+        else:
+            raise ValueError("Input valid discard value (int>=0)")
         
-        total_iterations = self.sampler.get_chain().shape[0]
         effective_discard = min(discard, total_iterations)      
         flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
         flatlnprob = self.sampler.get_log_prob(discard=effective_discard, flat=True)
         
+        self.burn_iter = original_burn_iter
+
         return flatchain[np.argmax(flatlnprob)]
 
     def show_corner_plot(self, labels, discard=None, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
