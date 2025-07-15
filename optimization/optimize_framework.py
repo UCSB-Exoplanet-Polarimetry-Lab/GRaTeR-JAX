@@ -184,7 +184,7 @@ class Optimizer:
 
         # Unlogscale the internal sampler chain
         array_lengths = [len(self._get_param_value(k)) if k in array_params else 1 for k in fit_keys]
-        OptimizeUtils.unlogscale_mcmc_model(mc_model, fit_keys, logscaled_params, array_params, array_lengths)
+        mcmc_model = OptimizeUtils.unlogscale_mcmc_model(mc_model, fit_keys, logscaled_params, array_params, array_lengths)
 
         # Scale spline to (0, 1) if FuncModel is a spline
         if isinstance(self.FuncModel, InterpolatedUnivariateSpline_SPF):
@@ -193,6 +193,8 @@ class Optimizer:
                                                     InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)), 0)
             scale_factor = 1.0 / current_val if current_val != 0 else 1.0
             self.scale_spline_to_fixed_point(0, 1)
+
+            print(scale_factor)
             
             OptimizeUtils.scale_spline_chains(mc_model, fit_keys, array_params, array_lengths, self.spf_params, scale_factor)
 
@@ -563,13 +565,11 @@ class OptimizeUtils:
             length = array_lengths[i] if is_array else 1
 
             if is_log:
-                flat[:, index:index+length] = np.exp(flat[:, index:index+length])
                 chain[:, :, index:index+length] = np.exp(chain[:, :, index:index+length])
             index += length
 
         # Overwrite the sampler internals
-        mc_model.sampler._chain = chain
-        mc_model.sampler._flatchain = flat
+        mc_model.scaled_chain = chain
 
     @classmethod
     def scale_spline_chains(cls, mc_model, fit_keys, array_params, array_lengths, scale_factor):
@@ -585,10 +585,12 @@ class OptimizeUtils:
         end_idx = start_idx + array_lengths[knot_idx]
         
         # Scale the chain
-        chain = mc_model.sampler.get_chain()
+        chain = mc_model.sampler.get_chain().copy()
         chain[:, :, start_idx:end_idx] *= scale_factor
         
         # Scale flux_scaling inversely if being fit
         if 'flux_scaling' in fit_keys:
             flux_idx = sum(array_lengths[:fit_keys.index('flux_scaling')])
             chain[:, :, flux_idx] /= scale_factor
+
+        mc_model.scaled_chain = chain
