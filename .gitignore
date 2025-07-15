@@ -9,3 +9,4 @@ cdbs/
 stellar_psf_images/
 test_images/
 stpsf-data/
+tutorials/test_emcee_backend.h5
