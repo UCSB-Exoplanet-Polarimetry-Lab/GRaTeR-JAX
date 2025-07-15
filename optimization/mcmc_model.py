@@ -63,71 +63,30 @@ class MCMC_model():
         
         self.sampler, self.pos, self.prob, self.state = sampler, pos, prob, state
         return sampler, pos, prob, state
-
-    def get_theta_median(self, discard=None):
-        if (self.sampler == None):
-            raise Exception("Need to run model first!")
-        
-        chain = self.sampler.get_chain()
-        total_iterations = chain.shape[0]
-        original_burn_iter = self.burn_iter
-
-        if discard is None:
-            discard = self.burn_iter
-        elif isinstance(discard, int) and discard >= 0:
-            self.burn_iter = discard
-        else:
-            raise ValueError("Input valid discard value (int>=0)")
-        
-        effective_discard = min(discard, total_iterations)
-        flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
-
-        self.burn_iter = original_burn_iter
-        
-        return np.median(flatchain, axis=0)
     
-    def get_theta_percs(self, discard=None):
-        if (self.sampler == None):
-            raise Exception("Need to run model first!")
-        
-        chain = self.sampler.get_chain()
-        total_iterations = chain.shape[0]
-        original_burn_iter = self.burn_iter
-
-        if discard is None:
-            discard = self.burn_iter
-        elif isinstance(discard, int) and discard >= 0:
-            self.burn_iter = discard
+    def set_discarded_iters(self, new_burn_iters):
+        if isinstance(new_burn_iters, int) and new_burn_iters >= 0:
+            self.burn_iter = new_burn_iters
         else:
             raise ValueError("Input valid discard value (int>=0)")
 
-        effective_discard = min(discard, total_iterations)
-        flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
+    def get_theta_median(self):
+        if self.sampler is None:
+            raise Exception("Need to run model first!")
+        flatchain = self._get_flatchain()
+        return np.median(flatchain, axis=0)
 
-        self.burn_iter = original_burn_iter
-
+    def get_theta_percs(self):
+        if self.sampler is None:
+            raise Exception("Need to run model first!")
+        flatchain = self._get_flatchain()
         return np.percentile(flatchain, [16, 50, 84], axis=0)
 
-    def get_theta_max(self, discard=None):
-        if (self.sampler == None):
+    def get_theta_max(self):
+        if self.sampler is None:
             raise Exception("Need to run model first!")
-        
-        total_iterations = self.sampler.get_chain().shape[0]
-        original_burn_iter = self.burn_iter
-
-        if discard is None:
-            discard = self.burn_iter
-        elif isinstance(discard, int) and discard >= 0:
-            self.burn_iter = discard
-        else:
-            raise ValueError("Input valid discard value (int>=0)")
-        
-        effective_discard = min(discard, total_iterations)      
-        flatchain = self.sampler.get_chain(discard=effective_discard, flat=True)
-        flatlnprob = self.sampler.get_log_prob(discard=effective_discard, flat=True)
-        
-        self.burn_iter = original_burn_iter
-
+        flatchain = self._get_flatchain()
+        flatlnprob = self._get_flatlogprob()
         return flatchain[np.argmax(flatlnprob)]
 
     def show_corner_plot(self, labels, discard=None, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
@@ -209,3 +168,15 @@ class MCMC_model():
         taus = 2.0 * np.cumsum(f) - 1.0
         window = self._auto_window(taus, c)
         return taus[window]
+    
+    def _get_flatchain(self):
+        """Helper method to get flat chain after discarding burn-in."""
+        total_iterations = self.sampler.get_chain().shape[0]
+        discard = min(self.burn_iter, total_iterations)
+        return self.sampler.get_chain(discard=discard, flat=True)
+
+    def _get_flatlogprob(self):
+        """Helper method to get flat log-probabilities after burn-in."""
+        total_iterations = self.sampler.get_chain().shape[0]
+        discard = min(self.burn_iter, total_iterations)
+        return self.sampler.get_log_prob(discard=discard, flat=True)
