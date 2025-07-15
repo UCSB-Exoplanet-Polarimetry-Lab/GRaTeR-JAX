@@ -123,7 +123,7 @@ class Optimizer:
         return soln
 
     def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50, 
-            continue_from=False, scale_for_shape=False):
+            continue_from=False, scale_for_shape=False,**kwargs):
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
@@ -174,7 +174,7 @@ class Optimizer:
             raise Exception("MCMC Initial Bounds Exception")
 
         mc_model = MCMC_model(ll, (init_lb, init_ub), self.name)
-        mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns,continue_from=continue_from)
+        mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns,continue_from=continue_from,**kwargs)
 
         mc_soln = mc_model.get_theta_median()
         param_list = self._unflatten_params(mc_soln, fit_keys, logscales, is_arrays)
@@ -451,7 +451,7 @@ class Optimizer:
         with open(os.path.join(dirname,'{}_{}_spfparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
             serializable_spf = {}
             for key, value in self.spf_params.items():
-                if isinstance(value, jnp.ndarray):
+                if isinstance(value, jnp.ndarray) or isinstance(value, np.ndarray):
                     serializable_spf[key] = value.tolist()
                 else:
                     serializable_spf[key] = value
@@ -461,7 +461,7 @@ class Optimizer:
         with open(os.path.join(dirname,'{}_{}_miscparams.json'.format(self.name,self.last_fit)), 'w') as save_file:
             serializable_misc = {}
             for key, value in self.misc_params.items():
-                if isinstance(value, jnp.ndarray):
+                if isinstance(value, jnp.ndarray) or isinstance(value, np.ndarray):
                     serializable_misc[key] = value.tolist()
                 else:
                     serializable_misc[key] = value
