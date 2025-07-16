@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from disk_model.SLD_utils import *
 from scipy.optimize import minimize
 from optimization.mcmc_model import MCMC_model
-from disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood
+from disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood, objective_grad
 import json
 
 # Built for new objective function
@@ -32,6 +32,13 @@ class Optimizer:
             **self.kwargs
         )
     
+    def get_gradient(self, keys, target_image, err_map):
+        return objective_grad(
+            keys, self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params,
+            self.misc_params, self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
+            self.StellarPSFModel, target_image, err_map, **self.kwargs
+        )
+    
     def get_disk(self):
         return objective_model(
             self.disk_params, self.spf_params, None, self.misc_params,
@@ -39,6 +46,25 @@ class Optimizer:
             stellar_psf_params=None, StellarPSFModel=None,
             **self.kwargs
         )
+    
+    def get_values(self, keys):
+        values = []
+
+        for key in keys:
+            if key in self.disk_params:
+                values.append(self.disk_params[key])
+            elif key in self.spf_params:
+                values.append(self.spf_params[key])
+            elif key in self.psf_params:
+                values.append(self.psf_params[key])
+            elif key in self.stellar_psf_params:
+                values.append(self.psf_params[key])
+            elif key in self.misc_params:
+                values.append(self.misc_params[key])
+            else:
+                values.append(None)
+
+        return values
 
     def log_likelihood_pos(self, target_image, err_map):
         return -log_likelihood(self.get_model(), target_image, err_map)

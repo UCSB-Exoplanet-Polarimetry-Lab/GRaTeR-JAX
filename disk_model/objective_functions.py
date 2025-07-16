@@ -30,11 +30,38 @@ def pack_pars(p_dict, orig_dict):
 
 @jax.jit
 def log_likelihood(image, target_image, err_map):
+    safe = jnp.greater(err_map, 0)
     sigma2 = jnp.power(err_map, 2)
-    result = jnp.power((target_image - image), 2) / sigma2 + jnp.log(sigma2)
-    result = jnp.where(jnp.isnan(result), 0, result)
-
+    faulty_result = jnp.power((target_image - image), 2) / (sigma2+1e-40) + jnp.log(sigma2+1e-40)
+    result = jnp.where(safe, faulty_result, 0.)
     return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
+
+@jax.jit
+def residuals(image,target_image,err_map):
+    """
+    residuals for use in objective function
+    """
+    safe = jnp.greater(err_map, 0)
+    sigma2 = jnp.power(err_map, 2)
+    faulty_result = jnp.power((target_image - image), 2) / (sigma2+1e-40) + jnp.log(sigma2+1e-40)
+    result = jnp.where(safe, faulty_result, 0.)
+    return result
+
+def plot_fit_output(target_image,err_map,model_image,target_name='unknown',save=False):
+    """
+    plotting function for residuals, image, and model
+    """
+    fig, ax = plt.subplots(1,3)
+    ax[0].imshow(target_image,origin='lower')
+    ax[1].imshow(model_image,origin='lower')
+    ax[2].imshow(residuals(model_image, target_image, err_map),origin='lower')
+    ax[0].set_title('Data')
+    ax[1].set_title('Model')
+    ax[2].set_title('Residuals')
+    plt.tight_layout()
+    if save==True:
+        plt.savefig('{}_modelcomp.png'.format(target_name))
+    plt.show()
 
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
 def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
@@ -383,32 +410,390 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, ste
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
         )
 
-    result = residuals(target_image,err_map,model_image)
+    result = residuals(model_image,target_image,err_map)
 
     return -0.5 * jnp.sum(result) / scale
 
-@jax.jit
-def residuals(target_image,err_map,model_image):
-    """
-    residuals for use in objective function
-    """
-    sigma2 = jnp.power(err_map, 2)
-    result = jnp.power((target_image - model_image), 2) / sigma2 + jnp.log(sigma2)
-    result = jnp.where(jnp.isnan(result), 0, result)
-    return result
+# GRADIENT STUFF
 
-def plot_fit_output(target_image,err_map,model_image,target_name='unknown',save=False):
-    """
-    plotting function for residuals, image, and model
-    """
-    fig, ax = plt.subplots(1,3)
-    ax[0].imshow(target_image,origin='lower')
-    ax[1].imshow(model_image,origin='lower')
-    ax[2].imshow(residuals(target_image, err_map, model_image),origin='lower')
-    ax[0].set_title('Data')
-    ax[1].set_title('Model')
-    ax[2].set_title('Residuals')
-    plt.tight_layout()
-    if save==True:
-        plt.savefig('{}_modelcomp.png'.format(target_name))
-    plt.show()
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+def jax_model_scalar(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
+              distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+
+    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
+                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
+                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
+    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
+                                              disk_params[1], disk_params[2], disk_params[3],
+                                              nx=nx, ny=ny, distance = distance,
+                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
+
+    yc, xc = ny, nx
+    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
+    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
+
+    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
+    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
+
+    scattered_light_map = jnp.zeros((ny, nx))
+    image = jnp.zeros((ny, nx))
+
+    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
+    tmp = jnp.arange(0, halfNbSlices)
+    
+    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, spf_params, FuncModel,
+                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
+                                                                  halfNbSlices)
+    
+    dims = scattered_light_image.shape
+    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
+    x = x - disk_params[12] + xc
+    y = y - disk_params[13] + yc
+    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
+                                                            jnp.array([y, x]),order=1,cval = 0.)
+
+    if PSFModel != None:
+        scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
+
+    scattered_light_image = scattered_light_image*flux_scaling
+
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
+    return -log_likelihood(scattered_light_image, target_image, err_map)
+
+
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+def jax_model_winnie_scalar(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
+                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+
+    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
+                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
+                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
+    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
+                                              disk_params[1], disk_params[2], disk_params[3],
+                                              nx=nx, ny=ny, distance = distance,
+                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
+
+    yc, xc = ny, nx
+    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
+    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
+
+    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
+    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
+
+    scattered_light_map = jnp.zeros((ny, nx))
+    image = jnp.zeros((ny, nx))
+
+    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
+    tmp = jnp.arange(0, halfNbSlices)
+    
+    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, spf_params, FuncModel,
+                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
+                                                                  halfNbSlices)
+    
+    dims = scattered_light_image.shape
+    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
+    x = x - disk_params[12] + xc
+    y = y - disk_params[13] + yc
+    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
+                                                            jnp.array([y, x]),order=1,cval = 0.)
+
+    scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
+
+    scattered_light_image = scattered_light_image*flux_scaling
+
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
+    return -log_likelihood(scattered_light_image, target_image, err_map)
+
+
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+def jax_model_spline_scalar(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
+                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
+                     knots=jnp.linspace(1,-1,6)):
+
+    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
+                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
+                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
+    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
+                                              disk_params[1], disk_params[2], disk_params[3],
+                                              nx=nx, ny=ny, distance = distance,
+                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
+
+    yc, xc = ny, nx
+    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
+    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
+
+    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
+    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
+
+    scattered_light_map = jnp.zeros((ny, nx))
+    image = jnp.zeros((ny, nx))
+
+    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
+    tmp = jnp.arange(0, halfNbSlices)
+
+    func_params = FuncModel.pack_pars(spf_params, knots=knots)
+    
+    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, func_params, FuncModel,
+                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
+                                                                  halfNbSlices)
+    
+    dims = scattered_light_image.shape
+    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
+    x = x - disk_params[12] + xc
+    y = y - disk_params[13] + yc
+    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
+                                                            jnp.array([y, x]),order=1,cval = 0.)
+
+    if PSFModel != None:
+        scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
+
+    scattered_light_image = scattered_light_image*flux_scaling
+
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
+    return -log_likelihood(scattered_light_image, target_image, err_map)
+
+
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+def jax_model_spline_winnie_scalar(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
+                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
+                     flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
+
+    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
+                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
+                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
+    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
+                                              disk_params[1], disk_params[2], disk_params[3],
+                                              nx=nx, ny=ny, distance = distance,
+                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
+
+    yc, xc = ny, nx
+    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
+    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
+
+    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
+    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
+
+    scattered_light_map = jnp.zeros((ny, nx))
+    image = jnp.zeros((ny, nx))
+
+    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
+    tmp = jnp.arange(0, halfNbSlices)
+
+    func_params = FuncModel.pack_pars(spf_params, knots=knots)
+    
+    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, func_params, FuncModel,
+                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
+                                                                  halfNbSlices)
+
+    dims = scattered_light_image.shape
+    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
+    x = x - disk_params[12] + xc
+    y = y - disk_params[13] + yc
+    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
+                                                            jnp.array([y, x]),order=1,cval = 0.)
+
+    scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
+
+    scattered_light_image = scattered_light_image*flux_scaling
+
+    if StellarPSFModel != None:
+        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
+
+    return -log_likelihood(scattered_light_image, target_image, err_map)
+
+# JAX GRADS
+
+jax_model_grad = jax.grad(jax_model_scalar, argnums=(5, 6, 7, 8))
+jax_model_winnie_grad = jax.grad(jax_model_winnie_scalar, argnums=(5, 6, 8))
+jax_model_spline_grad = jax.grad(jax_model_spline_scalar, argnums=(5, 6, 7, 8))
+jax_model_spline_winnie_grad = jax.grad(jax_model_spline_winnie_scalar, argnums=(5, 6, 8))
+
+def objective_grad(keys, disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
+                       DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
+                       scale = 1., **kwargs):
+    
+    if StellarPSFModel is None:
+        stellar_psf_params = 0.
+    if PSFModel is None:
+        psf_params = 0.
+
+    if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
+        gradients = jax_model_grad(
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
+            pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            FuncModel.pack_pars(spf_params) if isinstance(spf_params, dict) else spf_params,
+            PSFModel.pack_pars(psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling']
+        )
+    elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
+        gradients = jax_model_winnie_grad(
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
+            pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            FuncModel.pack_pars(spf_params) if isinstance(spf_params, dict) else spf_params['knot_values'],
+            StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling']
+        )
+    elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
+
+        gradients = jax_model_spline_grad(
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
+            pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            spf_params['knot_values'],
+            PSFModel.pack_pars(psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
+        )
+    else:
+        gradients = jax_model_spline_winnie_grad(
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
+            pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            spf_params['knot_values'],
+            StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
+        )
+
+    # Unpack gradients
+    grad_disk = gradients[0]
+    grad_spf = gradients[1]
+    grad_psf = gradients[2] if len(gradients) > 2 else None
+    grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2] if len(gradients) == 3 else None
+
+    # Build a flat list of gradients in the same order as fit_keys
+    flat_gradients = []
+    for key in keys:
+        if key in disk_params:
+            idx = list(disk_params.keys()).index(key)
+            flat_gradients.append(grad_disk[idx])
+        elif key in spf_params:
+            idx = list(spf_params.keys()).index(key)
+            flat_gradients.append(grad_spf[idx])
+        elif psf_params != 0 and key in psf_params:
+           idx = list(psf_params.keys()).index(key)
+           flat_gradients.append(grad_psf[idx])
+        elif stellar_psf_params != 0 and key in stellar_psf_params:
+           idx = list(stellar_psf_params.keys()).index(key)
+           flat_gradients.append(grad_stellar[idx])
+
+    return np.array(flat_gradients)
+
+def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
+                       DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
+                       scale = 1., **kwargs):
+    
+    if StellarPSFModel is None:
+        stellar_psf_params = 0.
+    if PSFModel is None:
+        psf_params = 0.
+
+    # These temporary dictionaries are edited based on params_fit
+    temp_disk_params = disk_params.copy() if isinstance(disk_params, dict) else {}
+    temp_spf_params = spf_params.copy() if isinstance(spf_params, dict) else {}
+    temp_psf_params = psf_params.copy() if isinstance(psf_params, dict) else {}
+    temp_stellar_psf_params = stellar_psf_params.copy() if isinstance(stellar_psf_params, dict) else {}
+    temp_misc_params = misc_params.copy() if isinstance(misc_params, dict) else {}
+
+    # Corresponding index of params_fit for each key in fit_keys
+    param_index = 0
+
+    for key in fit_keys:
+        if key in temp_disk_params:
+            temp_disk_params[key] = params_fit[param_index]
+        elif key in temp_spf_params:
+            temp_spf_params[key] = params_fit[param_index]
+        elif key in temp_psf_params:
+            temp_psf_params[key] = params_fit[param_index]
+        elif key in temp_stellar_psf_params:
+            temp_stellar_psf_params[key] = params_fit[param_index]
+        elif key in temp_misc_params:
+            temp_misc_params[key] = params_fit[param_index]
+        param_index += 1
+
+    if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
+        gradients = jax_model_grad(
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
+            pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else spf_params,
+            PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling']
+        )
+    elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
+        gradients = jax_model_winnie_grad(
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
+            pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else temp_spf_params['knot_values'],
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling']
+        )
+    elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
+
+        gradients = jax_model_spline_grad(
+            DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
+            pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            temp_spf_params['knot_values'],
+            PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
+        )
+    else:
+        gradients = jax_model_spline_winnie_grad(
+            DiskModel, DistrModel, FuncModel, psf_params, StellarPSFModel,
+            pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
+            temp_spf_params['knot_values'],
+            StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
+            target_image, err_map,
+            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
+        )
+
+    # Unpack gradients
+    grad_disk, grad_spf = gradients[0], gradients[1]
+    grad_psf = gradients[2] if len(gradients) > 3 else None
+    grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2] if len(gradients) == 3 else None
+
+    # Build a flat list of gradients in the same order as fit_keys
+    flat_gradients = []
+    for key in fit_keys:
+        if key in disk_params:
+            idx = list(disk_params.keys()).index(key)
+            flat_gradients.append(grad_disk[idx])
+        elif key in spf_params:
+            idx = list(spf_params.keys()).index(key)
+            flat_gradients.append(grad_spf[idx])
+        elif psf_params != 0 and key in psf_params:
+            idx = list(psf_params.keys()).index(key)
+            flat_gradients.append(grad_psf[idx])
+        elif stellar_psf_params != 0 and key in stellar_psf_params:
+            idx = list(stellar_psf_params.keys()).index(key)
+            flat_gradients.append(grad_stellar[idx])
+
+    return np.array(flat_gradients)
