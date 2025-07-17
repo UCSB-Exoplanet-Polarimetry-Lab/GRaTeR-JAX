@@ -381,7 +381,7 @@ class EMP_PSF(Jax_class):
             The center offset to be added to the image. CURRENTLY NOT
         """
         scaled_image = (image[::scale_factor, ::scale_factor])[1::, 1::]
-        cropped_image = image[70:210, 70:210]
+        cropped_image = image[70:211, 70:211]
         def safe_float32_conversion(value):
             try:
                 return np.float32(value)
