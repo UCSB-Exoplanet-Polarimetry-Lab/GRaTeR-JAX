@@ -12,7 +12,7 @@ class MCMC_model():
         self.prob = None
         self.state = None
         self.name = name
-        self.burn_iter = 100
+        self.discard = 0
         self.nwalkers = None
         self.scaled_chain = None
 
@@ -31,50 +31,63 @@ class MCMC_model():
             return -np.inf
         return lp + self.fun(theta)
 
-    def run(self, initial, nwalkers=500, niter = 500, burn_iter = 100, nconst = 1e-7, continue_from=None, **kwargs):
-        ##can change moves with **kwargs option, see emcee documentation
+    def run(self, initial, nwalkers=500, niter=500, burn_iter=100, nconst=1e-7, continue_from=None, **kwargs):
+        ## can change moves with **kwargs option, see emcee documentation
         self.ndim = len(initial)
         self.nwalkers = nwalkers
         self.niter = niter
-        self.burn_iter = burn_iter
+        self.discard = burn_iter
 
-        outfile = "{}_emcee_backend.h5".format(self.name)
+        outfile = f"{self.name}_emcee_backend.h5"
         backend = emcee.backends.HDFBackend(outfile)
+
         if continue_from is not True:
             yes = input("This is going to overwrite the previous backend. Do you want to continue? (y/n): ")
             if yes == 'y':
                 print("Overwriting the previous backend...")
                 backend.reset(nwalkers, self.ndim)
-                p0 = [np.array(initial) + 1e-7 * np.random.randn(self.ndim) for i in range(nwalkers)]
+                p0 = [np.array(initial) + nconst * np.random.randn(self.ndim) for _ in range(nwalkers)]
             else:
                 print("Exiting...")
                 return
-            
-        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self._lnprob, backend=backend, **kwargs)
-        if continue_from is not True:
+
+            sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self._lnprob, backend=backend, **kwargs)
             print("Running burn-in...")
-            p0, _, _ = sampler.run_mcmc(p0, burn_iter,progress=True)
-            sampler.reset()
+            p0, _, _ = sampler.run_mcmc(p0, burn_iter, progress=True)
             print("Running production...")
-            pos, prob, state = sampler.run_mcmc(p0, niter,progress=True)
+            sampler.run_mcmc(p0, niter, progress=True)
+
         elif continue_from is True:
-            print("Running production...")
-            pos, prob, state = sampler.run_mcmc(None, niter,progress=True) 
-            self.niter = np.shape(sampler.get_chain())[0] 
-        
-        self.sampler, self.pos, self.prob, self.state = sampler, pos, prob, state
-        return sampler, pos, prob, state
+            sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self._lnprob, backend=backend, **kwargs)
+            print("Continuing production...")
+            sampler.run_mcmc(None, niter, progress=True)
+
+        # Store everything
+        self.sampler = sampler
+
+        # Full chain includes all samples
+        self.full_chain = sampler.get_chain()
+
+        self.full_lnprob = sampler.get_log_prob()
+        self.niter = self.full_chain.shape[0]
+
+        # Final state info
+        self.pos = self.full_chain[-1]
+        self.prob = self.full_lnprob[-1]
+        self.state = sampler.random_state
+
+        return sampler, self.full_chain, self.full_lnprob, self.state
     
-    def set_discarded_iters(self, new_burn_iters):
-        if isinstance(new_burn_iters, int) and new_burn_iters >= 0:
-            self.burn_iter = new_burn_iters
+    def set_discarded_iters(self, new_discard_iters):
+        if isinstance(new_discard_iters, int) and new_discard_iters >= 0:
+            self.discard = new_discard_iters
         else:
             raise ValueError("Input valid discard value (int>=0)")
 
     def get_theta_median(self, scaled = False):
         if self.sampler is None:
             raise Exception("Need to run model first!")
-        flatchain = self.scaled_chain.reshape((-1, self.ndim)) if scaled else self._get_flatchain()
+        flatchain = self._get_flatchain(scaled = scaled)
         return np.median(flatchain, axis=0)
 
     def get_theta_percs(self, scaled = False):
@@ -100,12 +113,10 @@ class MCMC_model():
         else:
             return unscaled_flatchain[max_idx]
 
-    def show_corner_plot(self, labels, discard=None, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
+    def show_corner_plot(self, labels, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
                             quiet = False, scaled = False):
         if (self.sampler == None):
             raise Exception("Need to run model first!")
-        if discard is None:
-            discard = self.burn_iter
 
         flatchain = self._get_flatchain(scaled=scaled)
         fig = corner.corner(flatchain,truths=truths, show_titles=show_titles,labels=labels,
@@ -187,14 +198,14 @@ class MCMC_model():
         if self.sampler is None:
             raise Exception("Need to run model first!")
 
-        discard = min(self.burn_iter, self.sampler.get_chain().shape[0])
+        discard = min(self.discard, self.sampler.get_chain().shape[0])
 
         if scaled:
             if self.scaled_chain is None:
                 raise ValueError("Scaled chain has not been set.")
             return self.scaled_chain[discard:, :, :]
         else:
-            return self.sampler.get_chain(discard=discard)
+            return self.sampler.get_chain()[discard:, :, :]
 
     def _get_flatchain(self, scaled=False):
         """Get flattened chain (niter * nwalkers, ndim), with burn-in discarded, optionally scaled."""
@@ -207,6 +218,6 @@ class MCMC_model():
             raise Exception("Need to run model first!")
         
         total_iterations = self.sampler.get_chain().shape[0]
-        discard = min(self.burn_iter, total_iterations)
+        discard = min(self.discard, total_iterations)
         return self.sampler.get_log_prob(discard=discard, flat=True)
 

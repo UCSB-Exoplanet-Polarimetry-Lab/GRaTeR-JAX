@@ -24,6 +24,12 @@ class Optimizer:
         self.name = 'test'
         self.last_fit = None
 
+    def jit_compile_model(self):
+        self.get_model()
+
+    def jit_compile_gradient(self, target_image, err_map):
+        self.get_gradient([], target_image, err_map)
+
     def get_model(self):
         return objective_model(
             self.disk_params, self.spf_params, self.psf_params, self.misc_params,
@@ -149,11 +155,11 @@ class Optimizer:
         return soln
 
     def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50, 
-            continue_from=False, scale_for_shape=False,**kwargs):
+            continue_from=False, scale_objective_function_for_shape=False,**kwargs):
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
-        scale = jnp.size(target_image) if scale_for_shape else 1.
+        scale = jnp.size(target_image) if scale_objective_function_for_shape else 1.
         
         ll = lambda x: objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
                                      self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
@@ -200,7 +206,7 @@ class Optimizer:
             raise Exception("MCMC Initial Bounds Exception")
 
         mc_model = MCMC_model(ll, (init_lb, init_ub), self.name)
-        mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns,continue_from=continue_from,**kwargs)
+        mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns, continue_from=continue_from, **kwargs)
 
         mc_soln = mc_model.get_theta_median()
         param_list = self._unflatten_params(mc_soln, fit_keys, logscales, is_arrays)
@@ -219,10 +225,10 @@ class Optimizer:
                                                     InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)), 0)
             scale_factor = 1.0 / current_val if current_val != 0 else 1.0
             self.scale_spline_to_fixed_point(0, 1)
-
-            print(scale_factor)
             
             OptimizeUtils.scale_spline_chains(mc_model, fit_keys, array_params, array_lengths, self.spf_params, scale_factor)
+
+        mc_model.discard = burns
 
         return mc_model
     
@@ -581,8 +587,7 @@ class OptimizeUtils:
     
     @classmethod
     def unlogscale_mcmc_model(cls, mc_model, fit_keys, logscaled_params, array_params, array_lengths):
-        flat = mc_model.sampler.flatchain.copy()
-        chain = mc_model.sampler.chain.copy()
+        chain = mc_model.sampler.get_chain()
 
         index = 0
         for i in range(len(fit_keys)):
@@ -612,6 +617,7 @@ class OptimizeUtils:
         
         # Scale the chain
         chain = mc_model.sampler.get_chain().copy()
+
         chain[:, :, start_idx:end_idx] *= scale_factor
         
         # Scale flux_scaling inversely if being fit
