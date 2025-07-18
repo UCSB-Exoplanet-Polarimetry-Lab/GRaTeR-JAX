@@ -142,7 +142,8 @@ class DustEllipticalDistribution2PowerLaws(Jax_class):
 
         den = (jnp.power(jnp.abs(radial_ratio)+1e-8, -2*distr["alpha_in"]) +
                jnp.power(jnp.abs(radial_ratio)+1e-8, -2*distr["alpha_out"]))
-        radial_density_term = jnp.sqrt(2./den+1e-8)*distr["dens_at_r0"]
+
+        radial_density_term = jnp.sqrt(2./(den+1e-8))*distr["dens_at_r0"]
         #if distr["pmin"] > 0:
         #    radial_density_term[r/(distr["pmin"]/(1-distr["e"]*costheta)) <= 1] = 0
         radial_density_term = jnp.where(distr["pmin"] > 0, 
