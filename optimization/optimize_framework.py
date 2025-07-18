@@ -565,7 +565,7 @@ class Optimizer:
         # Precompute index maps for efficiency
         disk_idx_map = {k: i for i, k in enumerate(self.disk_params)}
         spf_idx_map = {k: i for i, k in enumerate(self.spf_params)}
-        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)}
+        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)} if self.PSFModel != Winnie_PSF else {}
         
         use_interpolated_spf = issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF)
         use_winnie_psf = issubclass(self.PSFModel, Winnie_PSF)
@@ -584,7 +584,7 @@ class Optimizer:
             elif not use_winnie_psf and key in psf_idx_map:
                 grads.append(grad_psf[psf_idx_map[key]])
             elif self.StellarPSFModel is not None and key in self.stellar_psf_params:
-                grads.append(stellar_grad_dict[key])
+                grads.append(jnp.ravel(stellar_grad_dict[key]).tolist())
             else:
                 raise KeyError(f"Unrecognized key '{key}' in gradient.")
 
@@ -601,7 +601,7 @@ class Optimizer:
         # Precompute lookup tables
         disk_idx_map = {k: i for i, k in enumerate(self.disk_params)}
         spf_idx_map = {k: i for i, k in enumerate(self.spf_params)}
-        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)}
+        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)} if self.PSFModel != Winnie_PSF else {}
 
         use_interpolated_spf = issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF)
         use_winnie_psf = issubclass(self.PSFModel, Winnie_PSF)
@@ -620,7 +620,7 @@ class Optimizer:
             elif not use_winnie_psf and key in psf_idx_map:
                 grad_vector.append(grad_psf[psf_idx_map[key]])
             elif self.StellarPSFModel is not None and key in self.stellar_psf_params:
-                grad_vector.append(stellar_grad_dict[key])
+                grad_vector.extend(jnp.ravel(stellar_grad_dict[key]).tolist())  # stellar psf parameters are always arrays
             else:
                 raise KeyError(f"Unrecognized key '{key}' in gradient conversion.")
 
