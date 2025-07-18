@@ -1,9 +1,9 @@
 import jax
 import jax.numpy as jnp
 from disk_model.SLD_utils import *
-from scipy.optimize import minimize
+from scipy.optimize import minimize, check_grad
 from optimization.mcmc_model import MCMC_model
-from disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood, objective_grad
+from disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood, objective_grad, objective_fit_grad
 import json
 
 # Built for new objective function
@@ -38,12 +38,22 @@ class Optimizer:
             **self.kwargs
         )
     
-    def get_gradient(self, keys, target_image, err_map):
-        return objective_grad(
-            keys, self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params,
-            self.misc_params, self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
-            self.StellarPSFModel, target_image, err_map, **self.kwargs
+    def get_objective_likelihood(self, params_fit, fit_keys, target_image, err_map):
+        return objective_fit(
+            params_fit, fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
+            self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
+            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel, **self.kwargs
         )
+    
+    def get_gradient(self, keys, target_image, err_map):
+        return self._convert_raw_gradient_output_to_readable_output(keys, self._get_raw_gradient(target_image, err_map))
+    
+    def get_objective_gradient(self, params_fit, fit_keys, target_image, err_map):
+        return self._convert_raw_gradient_output_to_1d_array(fit_keys, objective_fit_grad(params_fit, fit_keys, self.disk_params,
+            self.spf_params, self.psf_params, self.misc_params, self.DiskModel, self.DistrModel, self.FuncModel,
+            self.PSFModel, target_image, err_map, stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
+            **self.kwargs
+        ))
     
     def get_disk(self):
         return objective_model(
@@ -82,19 +92,26 @@ class Optimizer:
         StellarPSFReference.reference_images = reference_images
 
     def scipy_optimize(self, fit_keys, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, method=None, ftol=1e-12, gtol=1e-12, eps=1e-8, **kwargs): 
+                       disp_soln=False, iters=500, method=None, use_grad = False,
+                       ftol=1e-12, gtol=1e-12, eps=1e-8, **kwargs): 
         
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
-        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
-                                       self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
-                                       self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
+        llp = lambda x: -self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
                                        target_image, err_map)
+        
+        llp_grad = lambda x: -self.get_objective_gradient(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
+                                    self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
+                                    self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
+                                    target_image, err_map)
+        
+        jac = llp_grad if use_grad else None
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
-        soln = minimize(llp, init_x, method=method, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
+        soln = minimize(llp, init_x, method=method, jac=jac, 
+                        options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
@@ -107,17 +124,21 @@ class Optimizer:
         return soln
     
     def scipy_bounded_optimize(self, fit_keys, fit_bounds, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale_for_shape = False, **kwargs):
+                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale_for_shape = False,
+                       use_grad=False, **kwargs):
 
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
         scale = jnp.size(target_image) if scale_for_shape else 1.
+
+        llp = lambda x: -self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
+                                       target_image, err_map) / scale
         
-        llp = lambda x: -objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
-                                       self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
-                                       self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
-                                       target_image, err_map, scale=scale)
+        llp_grad = lambda x: self._adjust_gradient_for_logscales( -self.get_objective_gradient(self._unflatten_params(x, fit_keys,
+                                logscales, is_arrays), fit_keys, target_image, err_map) / scale, fit_keys, logscales, is_arrays, x)
+        
+        jac = llp_grad if use_grad else None
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -139,8 +160,10 @@ class Optimizer:
                 else:
                     bounds.append((low[0], high[0]))
             i+=1
-        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
+        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, jac=jac,
+                        options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
+        
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
         self._update_params(param_list, fit_keys)
 
@@ -161,10 +184,8 @@ class Optimizer:
 
         scale = jnp.size(target_image) if scale_objective_function_for_shape else 1.
         
-        ll = lambda x: objective_fit(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys, self.disk_params,
-                                     self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
-                                     self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
-                                     target_image, err_map, scale=scale)
+        ll = lambda x: self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
+                                     target_image, err_map)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -532,6 +553,124 @@ class Optimizer:
             except FileNotFoundError:
                 print("File not found. Please check the directory and file names.")
                 return
+            
+    def _convert_raw_gradient_output_to_readable_output(self, keys, gradients):
+        grad_disk = gradients[0]
+        grad_spf = gradients[1]
+        grad_psf = gradients[2] if len(gradients) > 2 else None
+        grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2]
+
+        grads = []
+
+        # Precompute index maps for efficiency
+        disk_idx_map = {k: i for i, k in enumerate(self.disk_params)}
+        spf_idx_map = {k: i for i, k in enumerate(self.spf_params)}
+        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)}
+        
+        use_interpolated_spf = issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF)
+        use_winnie_psf = issubclass(self.PSFModel, Winnie_PSF)
+
+        if self.StellarPSFModel is not None:
+            stellar_grad_dict = self.StellarPSFModel.unpack_pars(grad_stellar)
+
+        for key in keys:
+            if key in disk_idx_map:
+                grads.append(grad_disk[disk_idx_map[key]])
+            elif key in spf_idx_map:
+                if use_interpolated_spf:
+                    grads.append(grad_spf)  # entire grad_spf array
+                else:
+                    grads.append(grad_spf[spf_idx_map[key]])
+            elif not use_winnie_psf and key in psf_idx_map:
+                grads.append(grad_psf[psf_idx_map[key]])
+            elif self.StellarPSFModel is not None and key in self.stellar_psf_params:
+                grads.append(stellar_grad_dict[key])
+            else:
+                raise KeyError(f"Unrecognized key '{key}' in gradient.")
+
+        return grads
+
+    def _convert_raw_gradient_output_to_1d_array(self, keys, gradients):
+        grad_disk = gradients[0]
+        grad_spf = gradients[1]
+        grad_psf = gradients[2] if len(gradients) > 2 else None
+        grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2]
+
+        grad_vector = []
+
+        # Precompute lookup tables
+        disk_idx_map = {k: i for i, k in enumerate(self.disk_params)}
+        spf_idx_map = {k: i for i, k in enumerate(self.spf_params)}
+        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)}
+
+        use_interpolated_spf = issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF)
+        use_winnie_psf = issubclass(self.PSFModel, Winnie_PSF)
+
+        if self.StellarPSFModel is not None:
+            stellar_grad_dict = self.StellarPSFModel.unpack_pars(grad_stellar)
+
+        for key in keys:
+            if key in disk_idx_map:
+                grad_vector.append(grad_disk[disk_idx_map[key]])
+            elif key in spf_idx_map:
+                if use_interpolated_spf:
+                    grad_vector.extend(grad_spf.tolist())  # add all spline gradients
+                else:
+                    grad_vector.append(grad_spf[spf_idx_map[key]])
+            elif not use_winnie_psf and key in psf_idx_map:
+                grad_vector.append(grad_psf[psf_idx_map[key]])
+            elif self.StellarPSFModel is not None and key in self.stellar_psf_params:
+                grad_vector.append(stellar_grad_dict[key])
+            else:
+                raise KeyError(f"Unrecognized key '{key}' in gradient conversion.")
+
+        return np.array(grad_vector).flatten()
+    
+    def _get_raw_gradient(self, target_image, err_map):
+        return objective_grad(
+            [], self.disk_params, self.spf_params, self.psf_params, self.misc_params, self.DiskModel,
+            self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
+            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel, **self.kwargs
+        )
+    
+    def _adjust_gradient_for_logscales(self, grad_list, fit_keys, logscales, is_arrays, flattened_params):
+
+        corrected = []
+        grad_index = 0
+        param_index = 0
+
+        for i, key in enumerate(fit_keys):
+            if is_arrays[i]:
+                # Find the array size from the parameter dictionaries
+                for param_dict in [self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params]:
+                    if isinstance(param_dict, dict) and key in param_dict and hasattr(param_dict[key], "__len__"):
+                        array_size = len(param_dict[key])
+                        break
+                else:
+                    raise ValueError(f"Cannot determine array size for {key}")
+
+                grads = np.array(grad_list[grad_index:grad_index + array_size])
+                if logscales[i]:
+                    values = np.exp(flattened_params[param_index:param_index + array_size])
+                    grads *= values  # Chain rule
+
+                corrected.append(grads)
+
+                grad_index += array_size
+                param_index += array_size
+
+            else:
+                grad = grad_list[grad_index]
+                if logscales[i]:
+                    value = np.exp(flattened_params[param_index])
+                    grad *= value  # Chain rule
+
+                corrected.append(np.array([grad]))
+
+                grad_index += 1
+                param_index += 1
+
+        return np.concatenate(corrected)
 
 class OptimizeUtils:
     
