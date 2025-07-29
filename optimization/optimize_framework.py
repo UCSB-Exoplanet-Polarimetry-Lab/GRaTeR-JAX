@@ -25,12 +25,26 @@ class Optimizer:
         self.last_fit = None
 
     def jit_compile_model(self):
+        """
+            Just-in-time compiles the disk model. Need to call again if any of the component classes are changed.
+        """
         self.get_model()
 
     def jit_compile_gradient(self, target_image, err_map):
+        """
+            Just-in-time compiles the gradient of the disk model for a given target image and err_map.
+        """
         self.get_gradient([], target_image, err_map)
 
     def get_model(self):
+        """
+            Returns the disk model as per the current parameters.
+
+            Returns
+            -------
+            numpy.ndarray
+                2d image of the generated disk model
+        """
         return objective_model(
             self.disk_params, self.spf_params, self.psf_params, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
@@ -39,6 +53,25 @@ class Optimizer:
         )
     
     def get_objective_likelihood(self, params_fit, fit_keys, target_image, err_map):
+        """
+            Returns the log likelihood of the disk model as per the given parameters, target image, and error map.
+
+            Parameters
+            ----------
+            params_fit: list of float
+                List of parameter values that are set to replace the original values of the parameters specified by fit_keys.
+            fit_keys: list of str
+                List of names of parameters that are set to be replaced by values in params_fit.
+            target_image: numpy.ndarray
+                Target image that the log likelihood is being computed with.
+            err_map: numpy.ndarray
+                Error map of same shape as target image that the log likelihood is being computed with.
+
+            Returns:
+            --------
+            float
+                Log likelihood value of the current model.
+        """
         return objective_fit(
             params_fit, fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
@@ -46,9 +79,48 @@ class Optimizer:
         )
     
     def get_gradient(self, keys, target_image, err_map):
+        """
+            Returns the gradient of the disk model for the given target image and error map for the parameters specified in keys.
+            Note: Log-scaling is not handled in this method.
+
+            Parameters
+            ----------
+            keys: list of str
+                Names of parameters that the gradient is being computed for.
+            target_image: numpy.ndarray
+                Target image that the gradient is being computed with.
+            err_map: numpy.ndarray
+                Error map of same shape as target image that the gradient is being computed with.
+
+            Returns:
+            --------
+            list
+                Gradient of the specified values in keys. Gradients returned in the same order as keys.
+        """
         return self._convert_raw_gradient_output_to_readable_output(keys, self._get_raw_gradient(target_image, err_map))
     
     def get_objective_gradient(self, params_fit, fit_keys, target_image, err_map):
+        """
+            Objective function for returning the gradient of the disk model for the given target image and error map for
+            the log likelihood. Takes in a list of parameters and their new values and outputs their gradients. Note:
+            Log-scaling is not handled in this method.
+
+            Parameters
+            ----------
+            params_fit: list of float
+                List of parameter values that are set to replace the original values of the parameters specified by fit_keys.
+            fit_keys: list of str
+                Names of parameters that the gradient is being computed for.
+            target_image: numpy.ndarray
+                Target image that the gradient is being computed with.
+            err_map: numpy.ndarray
+                Error map of same shape as target image that the gradient is being computed with.
+
+            Returns:
+            --------
+            numpy.ndarray
+                Gradient of the specified values in fit_keys. Gradients returned in the same order as fit_keys.
+        """
         return self._convert_raw_gradient_output_to_1d_array(fit_keys, objective_fit_grad(params_fit, fit_keys, self.disk_params,
             self.spf_params, self.psf_params, self.misc_params, self.DiskModel, self.DistrModel, self.FuncModel,
             self.PSFModel, target_image, err_map, stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
@@ -56,6 +128,16 @@ class Optimizer:
         ))
     
     def get_disk(self):
+        """
+            Returns the disk model as per the current parameters without the off-axis psf nor stellar psf. Note: will take
+            longer to run the first time as it needs to be JIT compiled due to the changing of the component classes for
+            the objective function call.
+
+            Returns
+            -------
+            numpy.ndarray
+                2d image of the generated disk model.
+        """
         return objective_model(
             self.disk_params, self.spf_params, None, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, None,
@@ -64,6 +146,19 @@ class Optimizer:
         )
     
     def get_values(self, keys):
+        """
+        Retrieves the current values of the specified model parameters.
+
+        Parameters
+        ----------
+        keys : list of str
+            List of parameter names to retrieve from the disk, SPF, PSF, stellar PSF, or misc parameter dictionaries.
+
+        Returns
+        -------
+        list
+            List of parameter values in the same order as the keys. If a key is not found, `None` is returned for that key.
+        """
         values = []
 
         for key in keys:
@@ -83,34 +178,117 @@ class Optimizer:
         return values
 
     def log_likelihood_pos(self, target_image, err_map):
+        """
+        Returns the negative log-likelihood of the current model compared to the target image.
+
+        Parameters
+        ----------
+        target_image : numpy.ndarray
+            2D array representing the target image.
+
+        err_map : numpy.ndarray
+            2D array of the same shape as target_image, representing the error map.
+
+        Returns
+        -------
+        float
+            Negative log-likelihood of the model with respect to the given image and error map.
+        """
         return -log_likelihood(self.get_model(), target_image, err_map)
 
     def log_likelihood(self, target_image, err_map):
+        """
+        Returns the log-likelihood of the current model compared to the target image.
+
+        Parameters
+        ----------
+        target_image : numpy.ndarray
+            2D array representing the target image.
+
+        err_map : numpy.ndarray
+            2D array of the same shape as target_image, representing the error map.
+
+        Returns
+        -------
+        float
+            Log-likelihood of the model with respect to the given image and error map.
+        """
         return log_likelihood(self.get_model(), target_image, err_map)
     
     def define_reference_images(self, reference_images):
+        """
+        Sets the reference images to be used for constructing the stellar PSF.
+
+        Parameters
+        ----------
+        reference_images : list of numpy.ndarray
+            List of 2D reference images to use for constructing the stellar PSF.
+        """
         StellarPSFReference.reference_images = reference_images
 
     def scipy_optimize(self, fit_keys, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, method=None, use_grad = False,
-                       ftol=1e-12, gtol=1e-12, eps=1e-8, **kwargs): 
+                       disp_soln=False, iters=500, method=None, use_grad = False, scale = 1.,
+                       ftol=1e-40, gtol=1e-40, eps=1e-40, **kwargs): 
+        """
+        Runs unconstrained optimization using SciPy's `minimize` on the specified parameters to maximize the log-likelihood.
+        Uses current parameter dictionary values.
+
+        Parameters
+        ----------
+        fit_keys : list of str
+            Names of parameters to fit.
+        logscaled_params : list of str
+            Subset of fit_keys that are log-scaled.
+        array_params : list of str
+            Subset of fit_keys that are array-valued parameters.
+        target_image : numpy.ndarray
+            Target image to fit the model to.
+        err_map : numpy.ndarray
+            Error map associated with the target image.
+        disp_soln : bool, optional
+            If True, prints the optimization result after completion. Default is False.
+        iters : int, optional
+            Maximum number of iterations. Default is 500.
+        method : str or None, optional
+            Optimization method to use (e.g., 'BFGS', 'L-BFGS-B'). If None, defaults to method chosen by `minimize`.
+        use_grad : bool, optional
+            Whether to use the analytical gradient. Default is False.
+        scale : float, optional
+            Scaling factor applied to the objective value and gradient. Default is 1.
+        ftol : float, optional
+            Tolerance for change in function value for convergence. Default is 1e-40.
+        gtol : float, optional
+            Tolerance for the norm of the projected gradient. Default is 1e-40.
+        eps : float, optional
+            Step size used for numerical approximation of the Jacobian (if `use_grad` is False). Default is 1e-40.
+        **kwargs : dict
+            Additional keyword arguments (currently unused).
+
+        Returns
+        -------
+        soln : scipy.optimize.OptimizeResult
+            The result of the optimization. Includes optimized parameters, success status, and diagnostic information.
+        """
         
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
-        llp = lambda x: -self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
-                                       target_image, err_map)
+        ll = lambda x: -self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
+                                       target_image, err_map) / scale
         
-        llp_grad = lambda x: -self.get_objective_gradient(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
+        ll_grad = lambda x: -self.get_objective_gradient(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
                                     self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
                                     self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
-                                    target_image, err_map)
+                                    target_image, err_map) / scale
         
-        jac = llp_grad if use_grad else None
+        ll_grad = lambda x: self._adjust_gradient_for_logscales( -self.get_objective_gradient(self._unflatten_params(x, fit_keys,
+                                logscales, is_arrays), fit_keys, target_image, err_map) / scale, fit_keys, logscales, is_arrays, x)
+        
+        jac = ll_grad if use_grad else None
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
-        soln = minimize(llp, init_x, method=method, jac=jac, 
+        soln = minimize(ll, init_x, method=method, jac=jac, 
                         options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
 
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
@@ -124,21 +302,59 @@ class Optimizer:
         return soln
     
     def scipy_bounded_optimize(self, fit_keys, fit_bounds, logscaled_params, array_params, target_image, err_map,
-                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale_for_shape = False,
+                       disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale = 1.,
                        use_grad=False, **kwargs):
+        """
+        Runs bounded optimization using SciPy's `minimize` with the L-BFGS-B algorithm to maximize the log-likelihood.
+        Uses current parameter dictionary values.
+
+        Parameters
+        ----------
+        fit_keys : list of str
+            Names of parameters to fit.
+        fit_bounds : tuple of list of float
+            Tuple (lower_bounds, upper_bounds) giving bounds for each parameter. Each bound can be scalar or array-like.
+        logscaled_params : list of str
+            Subset of fit_keys that are log-scaled.
+        array_params : list of str
+            Subset of fit_keys that are array-valued parameters.
+        target_image : numpy.ndarray
+            Target image to fit the model to.
+        err_map : numpy.ndarray
+            Error map associated with the target image.
+        disp_soln : bool, optional
+            If True, prints the optimization result after completion. Default is False.
+        iters : int, optional
+            Maximum number of iterations. Default is 500.
+        ftol : float, optional
+            Tolerance for change in function value for convergence. Default is 1e-12.
+        gtol : float, optional
+            Tolerance for the norm of the projected gradient. Default is 1e-12.
+        eps : float, optional
+            Step size used for numerical approximation of the Jacobian (if `use_grad` is False). Default is 1e-8.
+        scale : float, optional
+            Scaling factor applied to the objective value and gradient. Default is 1.
+        use_grad : bool, optional
+            Whether to use the analytical gradient. Default is False.
+        **kwargs : dict
+            Additional keyword arguments (currently unused).
+
+        Returns
+        -------
+        soln : scipy.optimize.OptimizeResult
+            The result of the optimization. Includes optimized parameters, success status, and diagnostic information.
+        """
 
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
-        scale = jnp.size(target_image) if scale_for_shape else 1.
-
-        llp = lambda x: -self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
+        ll = lambda x: -self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
                                        target_image, err_map) / scale
         
-        llp_grad = lambda x: self._adjust_gradient_for_logscales( -self.get_objective_gradient(self._unflatten_params(x, fit_keys,
+        ll_grad = lambda x: self._adjust_gradient_for_logscales( -self.get_objective_gradient(self._unflatten_params(x, fit_keys,
                                 logscales, is_arrays), fit_keys, target_image, err_map) / scale, fit_keys, logscales, is_arrays, x)
         
-        jac = llp_grad if use_grad else None
+        jac = ll_grad if use_grad else None
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -161,7 +377,9 @@ class Optimizer:
                     bounds.append((low[0], high[0]))
             i+=1
 
-        soln = minimize(llp, init_x, method='L-BFGS-B', bounds=bounds, jac=jac,
+        print(check_grad(ll, jac, init_x))
+
+        soln = minimize(ll, init_x, method='L-BFGS-B', bounds=bounds, jac=jac,
                         options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
         
         param_list = self._unflatten_params(soln.x, fit_keys, logscales, is_arrays)
@@ -179,6 +397,49 @@ class Optimizer:
 
     def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50, 
             continue_from=False, scale_objective_function_for_shape=False,**kwargs):
+        """
+        Runs Markov Chain Monte Carlo (MCMC) sampling using an emcee-based sampler to estimate 
+        posterior distributions for model parameters based on the log-likelihood function. Uses
+        current parameter dictionary values.
+
+        Parameters
+        ----------
+        fit_keys : list of str
+            Names of parameters to optimize using MCMC.
+        logscaled_params : list of str
+            Subset of `fit_keys` whose values are log-scaled.
+        array_params : list of str
+            Subset of `fit_keys` that correspond to array-valued parameters.
+        target_image : numpy.ndarray
+            2D array of the observed image data to compare against the model.
+        err_map : numpy.ndarray
+            2D array of the same shape as `target_image` representing per-pixel uncertainties.
+        BOUNDS : tuple of (list, list)
+            Tuple of (lower_bounds, upper_bounds) for each parameter in `fit_keys`. 
+            Each bound can be a scalar or a list if the parameter is an array.
+        nwalkers : int, optional
+            Number of MCMC walkers. Default is 250.
+        niter : int, optional
+            Total number of MCMC steps per walker. Default is 250.
+        burns : int, optional
+            Number of burn-in steps to discard from each chain. Default is 50.
+        continue_from : bool, optional
+            If True, continues from the previous MCMC run stored in the backend. Default is False.
+        scale_objective_function_for_shape : bool, optional
+            If True, scales the log-likelihood by the number of pixels in `target_image` to normalize shape differences. Default is False.
+        **kwargs : dict
+            Additional arguments passed to the underlying `MCMC_model.run()` method (e.g., custom moves).
+
+        Returns
+        -------
+        MCMC_model
+            The fitted `MCMC_model` object containing the sampler chain, statistics, and results.
+
+        Raises
+        ------
+        Exception
+            If the initial guess is out of the specified parameter bounds.
+        """
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
@@ -254,6 +515,20 @@ class Optimizer:
         return mc_model
     
     def inc_bound_knots(self, buffer = 0):
+        """
+        Applying inclination bounds to the knot values in order to improve fitting. Note: only use this if you have a good
+        initial inclination guess.
+
+        Parameters:
+        -----------
+        buffer : int
+            Degrees of inclination to be added to the knot bounds for padding.
+
+        Returns:
+        --------
+        dict
+            Copy of spf parameters for easier access. Should usually ignore.
+        """
         if(self.spf_params['num_knots'] <= 0):
             if(self.disk_params['sma'] < 50):
                 self.spf_params['num_knots'] = 4
@@ -265,6 +540,18 @@ class Optimizer:
     
     # Have to call this when using spline spfs
     def initialize_knots(self, target_image, dhg_params = [0.5, 0.5, 0.5]):
+        """
+        Initializes spline knots and flux scaling value to relatively close values to the target image. Need to run this
+        before any jit_compile method is run due to those methods relying on initialized knots.
+
+        Parameters:
+        -----------
+        target_image : numpy.ndarray
+            2d numpy array of target image
+        dhg_params : list
+            Initial double henyey greenstein function values that the spline will be oriented to match for the initial
+            guess.
+        """
         ## Get a good scaling
         y, x = np.indices(target_image.shape)
         y -= 70
@@ -277,9 +564,9 @@ class Optimizer:
         init_image = self.get_model()
 
         if self.disk_params['inclination'] > 70: 
-            knot_scale = 1.*np.nanpercentile(target_image[mask], 99) / jnp.nanmax(init_image)
+            knot_scale = 1.*np.nanpercentile(target_image[mask], 99) / (jnp.nanmax(init_image) + 1e-40)
         else: 
-            knot_scale = 0.2*np.nanpercentile(target_image[mask], 99) / jnp.nanmax(init_image)
+            knot_scale = 0.2*np.nanpercentile(target_image[mask], 99) / (jnp.nanmax(init_image) + 1e-40)
             
         self.spf_params['knot_values'] = self.spf_params['knot_values'] * knot_scale
 
@@ -292,11 +579,23 @@ class Optimizer:
         #else:
         self.scale_spline_to_fixed_point(0, 1)
 
-    def computer_stellar_psf_image(self):
+    def compute_stellar_psf_image(self):
+        """
+        Just returns an image of the stellar psf model.
+
+        Returns:
+        --------
+        numpy.ndarray
+            2 dimensional numpy array of stellar psf image
+        """
         return self.StellarPSFModel.compute_stellar_psf_image(self.StellarPSFModel.pack_pars(self.stellar_psf_params),
                                                               self.misc_params['nx'], self.misc_params['ny'])
 
     def scale_spline_to_fixed_point(self, cosphi, spline_val):
+        """
+        Only works for Interpolated Spline SPF Functions. Scales the spline by a single constant to match it with
+        a single point. Usually scaled to (cosphi = 0, spline value = 1).
+        """
         adjust_scale = spline_val / InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
             InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)),
             cosphi)
@@ -304,12 +603,18 @@ class Optimizer:
         self.misc_params['flux_scaling'] = self.misc_params['flux_scaling'] / adjust_scale
 
     def fix_all_nonphysical_params(self):
+        """
+        Catch-all method that bounds all parameters with non-physical parameters to their max or min values.
+        """
         if issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF):
             self.spf_params['knot_values'] = np.where(self.spf_params['knot_values'] < 1e-8, 1e-8, self.spf_params['knot_values'])
         if self.disk_params['e']<0:
             self.disk_params['e'] = 0
 
     def print_params(self):
+        """
+        Prints parameters to console.
+        """
         print("Disk Params: " + str(self.disk_params))
         print("SPF Params: " + str(self.spf_params))
         print("PSF Params: " + str(self.psf_params))
@@ -317,6 +622,14 @@ class Optimizer:
         print("Misc Params: " + str(self.misc_params))
 
     def get_flux_scale(self):
+        """
+        Returns flux scaling value.
+            
+        Returns:
+        --------
+        float
+            flux scaling value
+        """
         return self.misc_params['flux_scaling']
 
     def _flatten_params(self, fit_keys, logscales, is_arrays):
@@ -372,6 +685,39 @@ class Optimizer:
             param_list.append(value)
                 
         return np.concatenate([np.atleast_1d(x) for x in param_list])
+    
+    def initialize_stellar_psf_weights(self, target_image, rcond=1e-8):
+        """
+        Initialize the weights for the stellar PSF reference images by solving
+        a linear least squares problem to best match the target image.
+
+        This method computes a weighted linear combination of the reference PSF
+        images that best fits the target image in a least-squares sense. The resulting
+        weights are stored in `self.stellar_psf_params['stellar_weights']`.
+
+        Parameters
+        ----------
+        target_image : ndarray
+            The 2D target image that the stellar PSF model should fit.
+        rcond : float, optional
+            Cut-off ratio for small singular values in the least squares solver.
+            Values smaller than `rcond * largest_singular_value` are treated as zero.
+            Default is 1e-8.
+
+        Returns
+        -------
+        None
+        """
+
+        N = len(StellarPSFReference.reference_images)
+        H, W = target_image.shape
+        A = np.stack([img.flatten() for img in StellarPSFReference.reference_images], axis=1)  # shape: (H*W, N)
+        y = target_image.flatten()  # shape: (H*W,)
+
+        # Solve Aw = y using least squares
+        weights, residuals, rank, s = np.linalg.lstsq(A, y, rcond=rcond)
+        
+        self.stellar_psf_params['stellar_weights'] = weights
 
     def _unflatten_params(self, flattened_params, fit_keys, logscales, is_arrays):
         """
@@ -468,6 +814,22 @@ class Optimizer:
         self.fix_all_nonphysical_params()
 
     def _highlight_selected_params(self, fit_keys, selected_params):
+        """
+        Identify which parameters in `fit_keys` are also in `selected_params`.
+
+        Parameters
+        ----------
+        fit_keys : list of str
+            List of all parameter keys to check.
+        selected_params : list of str
+            Subset of keys that should be marked as selected (e.g., log-scaled or arrays).
+
+        Returns
+        -------
+        list of bool
+            Boolean list indicating whether each key in `fit_keys` is in `selected_params`.
+        """
+
         select_bools = []
         for key in fit_keys:
             select_bools.append(key in selected_params)
@@ -492,6 +854,25 @@ class Optimizer:
         print("Saved human readable file to {}".format(os.path.join(dirname,'{}_{}_hrparams.txt'.format(self.name,self.last_fit))))
 
     def _get_param_value(self, key):
+        """
+        Retrieve the value of a parameter from one of the parameter dictionaries.
+
+        Parameters
+        ----------
+        key : str
+            Name of the parameter to retrieve.
+
+        Returns
+        -------
+        Any
+            The value of the parameter.
+
+        Raises
+        ------
+        KeyError
+            If the parameter is not found in any of the known parameter dictionaries.
+        """
+
         param_dicts = [self.disk_params, self.spf_params, self.stellar_psf_params, self.misc_params]
         if isinstance(self.psf_params, dict):
             param_dicts.append(self.psf_params)
@@ -555,6 +936,26 @@ class Optimizer:
                 return
             
     def _convert_raw_gradient_output_to_readable_output(self, keys, gradients):
+        """
+        Convert raw gradient output into a list of gradients for the given parameter keys.
+
+        Parameters
+        ----------
+        keys : list of str
+            List of parameter keys for which to extract gradients.
+        gradients : tuple
+            Output from `_get_raw_gradient`, containing gradient arrays for different parameter groups.
+
+        Returns
+        -------
+        list
+            Gradient values corresponding to each parameter key in `keys`.
+
+        Raises
+        ------
+        KeyError
+            If a key is not found in any of the recognized gradient sources.
+        """
         grad_disk = gradients[0]
         grad_spf = gradients[1]
         grad_psf = gradients[2] if len(gradients) > 2 else None
@@ -591,6 +992,27 @@ class Optimizer:
         return grads
 
     def _convert_raw_gradient_output_to_1d_array(self, keys, gradients):
+        """
+        Convert raw gradient output into a flattened 1D gradient array for optimization routines.
+
+        Parameters
+        ----------
+        keys : list of str
+            List of parameter keys for which to extract gradients.
+        gradients : tuple
+            Output from `_get_raw_gradient`, containing gradient arrays for different parameter groups.
+
+        Returns
+        -------
+        ndarray
+            1D array of gradient values for the specified parameter keys.
+
+        Raises
+        ------
+        KeyError
+            If a parameter key is not recognized.
+        """
+
         grad_disk = gradients[0]
         grad_spf = gradients[1]
         grad_psf = gradients[2] if len(gradients) > 2 else None
@@ -627,6 +1049,22 @@ class Optimizer:
         return np.array(grad_vector).flatten()
     
     def _get_raw_gradient(self, target_image, err_map):
+        """
+        Compute raw gradients with respect to all model parameters using `objective_grad`. Note: Logscaled parameters
+        have their gradients with repect to their log values not their original values.
+
+        Parameters
+        ----------
+        target_image : ndarray
+            The target image to compare the model against.
+        err_map : ndarray
+            The error map for the image.
+
+        Returns
+        -------
+        tuple
+            Tuple containing raw gradients for (disk_params, spf_params, psf_params, stellar_psf_params).
+        """
         return objective_grad(
             [], self.disk_params, self.spf_params, self.psf_params, self.misc_params, self.DiskModel,
             self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
@@ -634,6 +1072,32 @@ class Optimizer:
         )
     
     def _adjust_gradient_for_logscales(self, grad_list, fit_keys, logscales, is_arrays, flattened_params):
+        """
+        Adjust gradient values for parameters that are log-scaled using the chain rule.
+
+        Parameters
+        ----------
+        grad_list : list or ndarray
+            Raw gradient values before log-scale correction.
+        fit_keys : list of str
+            List of parameter keys being optimized.
+        logscales : list of bool
+            Boolean flags indicating which parameters are log-scaled.
+        is_arrays : list of bool
+            Boolean flags indicating which parameters are arrays.
+        flattened_params : ndarray
+            Flattened array of parameter values corresponding to `fit_keys`.
+
+        Returns
+        -------
+        ndarray
+            Corrected gradient array with chain rule applied to log-scaled parameters.
+
+        Raises
+        ------
+        ValueError
+            If the size of an array parameter cannot be determined from known dictionaries.
+        """
 
         corrected = []
         grad_index = 0
@@ -673,9 +1137,28 @@ class Optimizer:
         return np.concatenate(corrected)
 
 class OptimizeUtils:
-    
+
     @classmethod
-    def create_empirical_err_map(cls, data, annulus_width=5, mask_rad=9, outlier_pixels=None):    
+    def create_empirical_err_map(cls, data, annulus_width=5, mask_rad=9, outlier_pixels=None):
+        """
+        Constructs an empirical error map based on radial annuli standard deviation.
+
+        Parameters
+        ----------
+        data : numpy.ndarray
+            2D image data array.
+        annulus_width : int, optional
+            Width (in pixels) of each radial annulus. Default is 5.
+        mask_rad : int, optional
+            Radius (in pixels) within which the error is artificially set to a large value. Default is 9.
+        outlier_pixels : list of tuple, optional
+            List of pixel coordinates (tuples) to mark as extreme outliers with inflated error values.
+
+        Returns
+        -------
+        noise_array : numpy.ndarray
+            2D array of the same shape as `data`, representing the empirical error map.
+        """
         y,x = np.indices(data.shape)
         y -= data.shape[0]//2
         x -= data.shape[1]//2 
@@ -695,10 +1178,46 @@ class OptimizeUtils:
     
     @classmethod
     def convert_dhg_params_to_spline_params(cls, g1, g2, w, spf_params):
+        """
+        Converts Double Henyey-Greenstein parameters into spline phase function values.
+
+        Parameters
+        ----------
+        g1 : float
+            First asymmetry parameter.
+        g2 : float
+            Second asymmetry parameter.
+        w : float
+            Weighting factor between the two lobes.
+        spf_params : dict
+            SPF parameters containing knot information for the spline.
+
+        Returns
+        -------
+        spline_vals : numpy.ndarray
+            Evaluated spline phase function values.
+        """
         return DoubleHenyeyGreenstein_SPF.compute_phase_function_from_cosphi([g1, g2, w], InterpolatedUnivariateSpline_SPF.get_knots(spf_params))
 
     @classmethod
-    def process_image(cls, image, scale_factor=1, bounds = (70, 210, 70, 210)):
+    def process_image(cls, image, scale_factor=1, bounds=(70, 210, 70, 210)):
+        """
+        Crops, scales, and safely converts an image to float32.
+
+        Parameters
+        ----------
+        image : numpy.ndarray
+            Input image array.
+        scale_factor : int, optional
+            Factor to downsample the image spatially. Default is 1 (no scaling).
+        bounds : tuple of int, optional
+            A 4-element tuple defining the cropping window as (ymin, ymax, xmin, xmax). Default is (70, 210, 70, 210).
+
+        Returns
+        -------
+        fin_image : numpy.ndarray
+            Processed and cropped image array in float32 format with NaNs converted to 0.
+        """
         cls.scaled_image = (image[::scale_factor, ::scale_factor])[1::, 1::]
         cropped_image = image[bounds[0]:bounds[1],bounds[0]:bounds[1]]
         def safe_float32_conversion(value):
@@ -711,7 +1230,26 @@ class OptimizeUtils:
         return fin_image
     
     @classmethod
-    def get_mask(cls, data, annulus_width=5, mask_rad=9, outlier_pixels=None):    
+    def get_mask(cls, data, annulus_width=5, mask_rad=9, outlier_pixels=None):
+        """
+        Generates a binary mask identifying the central masked region of an image.
+
+        Parameters
+        ----------
+        data : numpy.ndarray
+            2D image array.
+        annulus_width : int, optional
+            Width of annuli used for noise estimation (not returned). Default is 5.
+        mask_rad : int, optional
+            Radius of the central region to mask out (set to True). Default is 9.
+        outlier_pixels : list of tuple, optional
+            Currently unused in mask generation but included for consistency.
+
+        Returns
+        -------
+        mask : numpy.ndarray
+            Boolean array of same shape as input, where True indicates masked (excluded) pixels.
+        """
         y,x = np.indices(data.shape)
         y -= data.shape[0]//2
         x -= data.shape[1]//2 
@@ -726,6 +1264,22 @@ class OptimizeUtils:
     
     @classmethod
     def unlogscale_mcmc_model(cls, mc_model, fit_keys, logscaled_params, array_params, array_lengths):
+        """
+        Unlog-scales MCMC chain values in-place for parameters originally fit in log space.
+
+        Parameters
+        ----------
+        mc_model : MCMC_model
+            Instance of MCMC_model whose chain will be modified.
+        fit_keys : list of str
+            Names of the parameters in the chain.
+        logscaled_params : list of str
+            Subset of fit_keys that were log-scaled during sampling.
+        array_params : list of str
+            Subset of fit_keys that are array-valued.
+        array_lengths : list of int
+            Length of each parameter in flattened form (1 for scalars, >1 for arrays).
+        """
         chain = mc_model.sampler.get_chain()
 
         index = 0
@@ -743,7 +1297,22 @@ class OptimizeUtils:
 
     @classmethod
     def scale_spline_chains(cls, mc_model, fit_keys, array_params, array_lengths, scale_factor):
-        """Scale spline chains by a given scale factor"""
+        """
+        Applies normalization scaling to spline knots and compensates flux scaling if present in MCMC chains.
+
+        Parameters
+        ----------
+        mc_model : MCMC_model
+            The MCMC model object containing the chain.
+        fit_keys : list of str
+            Names of parameters in the MCMC chain.
+        array_params : list of str
+            Parameters treated as arrays (e.g., spline knots).
+        array_lengths : list of int
+            Flattened size of each parameter.
+        scale_factor : float
+            Value to scale `knot_values` by. If `flux_scaling` is present, it will be inversely scaled.
+        """
         try:
             knot_idx = fit_keys.index('knot_values')
             if 'knot_values' not in array_params:
