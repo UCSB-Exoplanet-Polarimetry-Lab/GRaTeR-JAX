@@ -308,10 +308,57 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
     return log_likelihood(model_image, target_image, err_map)
 
 
-def objective_grad(keys, disk_params, spf_params, psf_params, misc_params,
+def objective_grad(disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
                        stellar_psf_params = None, StellarPSFModel = None,
                         **kwargs):
+    """
+    Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
+    disk, scattering function, point spread function, stellar psf point spread function, and misceallaneous parameters
+    along with the target image and error map.
+
+    disk_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    misc_params : dict of (str, float) pairs
+        The parameter dictionary for misceallanious values, such as image size and flux scaling, dictionary is
+        made of (parameter name, parameter value) pairs.
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    stellar_psf_params : dict of (str, float) pairs, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    kwargs : dict, optional
+        Additional keyword arguments that are passed into the objective model function.
+        
+    Returns
+    -------
+    list of jnp array
+        Gradients of all the parameters with the format (gradients of disk params, gradients of spf params,
+        gradients of psf_params, gradients of stellar psf params)
+
+        Note: if the psf model is a WinniePSF, the gradients of psf_params will not be included in the output.
+        Note: not all parameters are supported for gradient evaluation due to limitations of the JAX model.
+        Note: the raw gradient output is transformed in the Optimizer class which wraps this method nicely.
+    """
     
     if StellarPSFModel is None:
         stellar_psf_params = 0.
@@ -423,6 +470,8 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
         gradients of psf_params, gradients of stellar psf params)
 
         Note: if the psf model is a WinniePSF, the gradients of psf_params will not be included in the output.
+        Note: not all parameters are supported for gradient  evaluation due to limitations of the JAX model.
+        Note: the raw gradient output is transformed in the Optimizer class which wraps this method nicely.
     """
 
     if StellarPSFModel is None:

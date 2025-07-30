@@ -1103,7 +1103,7 @@ class Optimizer:
             Tuple containing raw gradients for (disk_params, spf_params, psf_params, stellar_psf_params).
         """
         return objective_grad(
-            [], self.disk_params, self.spf_params, self.psf_params, self.misc_params, self.DiskModel,
+            self.disk_params, self.spf_params, self.psf_params, self.misc_params, self.DiskModel,
             self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
             stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel, **self.kwargs
         )
