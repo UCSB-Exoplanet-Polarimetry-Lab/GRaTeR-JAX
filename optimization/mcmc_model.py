@@ -4,6 +4,20 @@ import corner
 import matplotlib.pyplot as plt
 
 class MCMC_model():
+    """
+    Markov Chain Monte Carlo (MCMC) wrapper for emcee sampler with tools for
+    inference, diagnostics, and visualization.
+
+    Parameters
+    ----------
+    fun : callable
+        The log-likelihood function to evaluate.
+    theta_bounds : tuple of np.ndarray
+        Tuple (lower_bounds, upper_bounds) for parameters.
+    name : str
+        Name of the model (used for backend filename).
+    """
+
     def __init__(self, fun, theta_bounds, name):
         self.fun = fun
         self.theta_bounds = theta_bounds
@@ -17,22 +31,69 @@ class MCMC_model():
         self.scaled_chain = None
 
     def _lnprior(self, theta):
+        """
+        Uniform prior within bounds.
+
+        Parameters
+        ----------
+        theta : np.ndarray
+            Parameter array.
+
+        Returns
+        -------
+        float
+            0 if within bounds, -inf otherwise.
+        """
         if np.all(theta > self.theta_bounds[0]) and np.all(theta < self.theta_bounds[1]):
             return 0
         else:
             return -np.inf
 
-    def _lnprob(self, theta, prior_func = None):
-        if prior_func == None:
-            lp = self._lnprior(theta)
-        else:
-            lp = prior_func(self.theta_bounds, theta)
+    def _lnprob(self, theta, prior_func=None):
+        """
+        Log-probability function combining prior and likelihood.
+
+        Parameters
+        ----------
+        theta : np.ndarray
+            Parameter array.
+        prior_func : callable, optional
+            Custom prior function.
+
+        Returns
+        -------
+        float
+            Log-probability.
+        """
+        lp = prior_func(self.theta_bounds, theta) if prior_func else self._lnprior(theta)
         if lp == -np.inf:
             return -np.inf
         return lp + self.fun(theta)
 
     def run(self, initial, nwalkers=500, niter=500, burn_iter=100, nconst=1e-7, continue_from=None, **kwargs):
-        ## can change moves with **kwargs option, see emcee documentation
+        """
+        Run MCMC sampling using emcee.
+
+        Parameters
+        ----------
+        initial : np.ndarray
+            Initial guess for parameters.
+        nwalkers : int
+            Number of MCMC walkers.
+        niter : int
+            Number of production iterations.
+        burn_iter : int
+            Number of burn-in iterations.
+        nconst : float
+            Perturbation constant for initializing walkers.
+        continue_from : bool or None
+            Whether to continue from previous run.
+
+        Returns
+        -------
+        tuple
+            (sampler, chain, log-probs, random state)
+        """
         self.ndim = len(initial)
         self.nwalkers = nwalkers
         self.niter = niter
@@ -44,7 +105,6 @@ class MCMC_model():
         if continue_from is not True:
             yes = input("This is going to overwrite the previous backend. Do you want to continue? (y/n): ")
             if yes == 'y':
-                print("Overwriting the previous backend...")
                 backend.reset(nwalkers, self.ndim)
                 p0 = [np.array(initial) + nconst * np.random.randn(self.ndim) for _ in range(nwalkers)]
             else:
@@ -57,81 +117,132 @@ class MCMC_model():
             print("Running production...")
             sampler.run_mcmc(p0, niter, progress=True)
 
-        elif continue_from is True:
+        else:
             sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self._lnprob, backend=backend, **kwargs)
-            print("Continuing production...")
             sampler.run_mcmc(None, niter, progress=True)
 
-        # Store everything
         self.sampler = sampler
-
-        # Full chain includes all samples
         self.full_chain = sampler.get_chain()
-
         self.full_lnprob = sampler.get_log_prob()
-        self.niter = self.full_chain.shape[0]
-
-        # Final state info
         self.pos = self.full_chain[-1]
         self.prob = self.full_lnprob[-1]
         self.state = sampler.random_state
 
         return sampler, self.full_chain, self.full_lnprob, self.state
-    
+
     def set_discarded_iters(self, new_discard_iters):
+        """
+        Set the number of burn-in iterations to discard.
+
+        Parameters
+        ----------
+        new_discard_iters : int
+            Number of iterations to discard (must be >= 0).
+        """
         if isinstance(new_discard_iters, int) and new_discard_iters >= 0:
             self.discard = new_discard_iters
         else:
             raise ValueError("Input valid discard value (int>=0)")
 
-    def get_theta_median(self, scaled = False):
-        if self.sampler is None:
-            raise Exception("Need to run model first!")
-        flatchain = self._get_flatchain(scaled = scaled)
+    def get_theta_median(self, scaled=False):
+        """
+        Return median of posterior samples.
+
+        Parameters
+        ----------
+        scaled : bool, optional
+            If True, use scaled parameter samples.
+
+        Returns
+        -------
+        np.ndarray
+            Median parameter values.
+        """
+        flatchain = self._get_flatchain(scaled)
         return np.median(flatchain, axis=0)
 
-    def get_theta_percs(self, scaled = False):
-        if self.sampler is None:
-            raise Exception("Need to run model first!")
-        flatchain = self._get_flatchain(scaled = scaled)
+    def get_theta_percs(self, scaled=False):
+        """
+        Return 16th, 50th, and 84th percentiles of posterior samples.
+
+        Parameters
+        ----------
+        scaled : bool, optional
+            If True, use scaled parameter samples.
+
+        Returns
+        -------
+        np.ndarray
+            Array of shape (3, ndim) with 16th, 50th, 84th percentiles.
+        """
+        flatchain = self._get_flatchain(scaled)
         return np.percentile(flatchain, [16, 50, 84], axis=0)
 
     def get_theta_max(self, scaled=False):
-        if self.sampler is None:
-            raise Exception("Need to run model first!")
+        """
+        Return parameter values corresponding to maximum log-probability.
 
-        # Always get unscaled flatchain for indexing and log-prob matching
-        unscaled_flatchain = self._get_flatchain(scaled=False)
+        Parameters
+        ----------
+        scaled : bool, optional
+            If True, return scaled values.
+
+        Returns
+        -------
+        np.ndarray
+            Parameter values with maximum log probability.
+        """
         flatlnprob = self._get_flatlogprob()
         max_idx = np.argmax(flatlnprob)
+        return self._get_flatchain(scaled)[max_idx]
 
-        if scaled:
-            if self.scaled_chain is None:
-                raise ValueError("Scaled chain has not been set.")
-            scaled_flatchain = self._get_flatchain(scaled=True)
-            return scaled_flatchain[max_idx]
-        else:
-            return unscaled_flatchain[max_idx]
+    def show_corner_plot(self, labels, truths=None, show_titles=True, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84], quiet=False, scaled=False):
+        """
+        Generate corner plot using posterior samples.
 
-    def show_corner_plot(self, labels, truths=None, show_titles=True, plot_datapoints=True, quantiles = [0.16, 0.5, 0.84],
-                            quiet = False, scaled = False):
-        if (self.sampler == None):
-            raise Exception("Need to run model first!")
+        Parameters
+        ----------
+        labels : list of str
+            List of parameter names for plot axes.
+        truths : array-like, optional
+            True values to show as vertical lines.
+        show_titles : bool, optional
+            If True, show titles with stats above plots.
+        plot_datapoints : bool, optional
+            If True, show individual data points.
+        quantiles : list of float, optional
+            Quantiles to show on plot.
+        quiet : bool, optional
+            Suppress text output.
+        scaled : bool, optional
+            If True, use scaled parameter samples.
 
-        flatchain = self._get_flatchain(scaled=scaled)
-        fig = corner.corner(flatchain,truths=truths, show_titles=show_titles,labels=labels,
-                                plot_datapoints=plot_datapoints,quantiles=quantiles, quiet=quiet)
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The corner plot figure.
+        """
+        flatchain = self._get_flatchain(scaled)
+        return corner.corner(flatchain, truths=truths, show_titles=show_titles, labels=labels, plot_datapoints=plot_datapoints, quantiles=quantiles, quiet=quiet)
 
-    def plot_chains(self, labels, cols_per_row = 3, scaled = False):
-        if self.sampler is None:
-            raise Exception("Need to run model first!")
-        
-        chain = self._get_chain(scaled=scaled)  # shape: (niter, nwalkers, ndim)
+    def plot_chains(self, labels, cols_per_row=3, scaled=False):
+        """
+        Plot individual walker chains for each parameter.
+
+        Parameters
+        ----------
+        labels : list of str
+            Names of parameters.
+        cols_per_row : int, optional
+            Number of subplot columns per row.
+        scaled : bool, optional
+            If True, use scaled parameter samples.
+        """
+        chain = self._get_chain(scaled)
         niter, nwalkers, n_params = chain.shape
         n_rows = int(np.ceil(n_params / cols_per_row))
         fig, axes = plt.subplots(n_rows, cols_per_row, figsize=(6 * cols_per_row, 4 * n_rows), squeeze=False)
         fig.subplots_adjust(hspace=0.4)
-
         x = np.arange(niter)
         for idx in range(n_params):
             i, j = divmod(idx, cols_per_row)
@@ -140,14 +251,21 @@ class MCMC_model():
             axes[i][j].set_title(labels[idx])
         plt.show()
 
+    def auto_corr(self, chain_length=50):
+        """
+        Estimate autocorrelation length using Sokal's method.
 
-    # Autocorrelation Methods from Here
-    def auto_corr(self, chain_length = 50):
-        if (self.sampler == None):
-            raise Exception("Need to run model first!")
+        Parameters
+        ----------
+        chain_length : int
+            Number of subchain lengths to evaluate.
+
+        Returns
+        -------
+        np.ndarray
+            Autocorrelation estimates for different subchain lengths.
+        """
         chain = self.sampler.get_chain()[:, :, 0].T
-
-        # Compute the estimators for a few different chain lengths
         N = np.exp(np.linspace(np.log(100), np.log(chain.shape[1]), chain_length)).astype(int)
         estims = np.empty(len(N))
         for i, n in enumerate(N):
@@ -155,36 +273,78 @@ class MCMC_model():
         return estims
 
     def _next_pow_two(self, n):
-        i = 1
-        while i < n:
-            i = i << 1
-        return i
+        """
+        Return next power of 2 greater than or equal to `n`.
 
-    def _autocorr_func_1d(self, x, norm=True):
+        Parameters
+        ----------
+        n : int
+            Input integer.
+
+        Returns
+        -------
+        int
+            Smallest power of 2 >= n.
+        """
+        if n < 1:
+            return 1
+        return 1 << (n - 1).bit_length()
+
+    def _autocorr_func_1d(self, x):
+        """
+        Compute unnormalized autocorrelation function using FFT.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            1D input signal.
+
+        Returns
+        -------
+        np.ndarray
+            Autocorrelation function.
+        """
         x = np.atleast_1d(x)
-        if len(x.shape) != 1:
-            raise ValueError("invalid dimensions for 1D autocorrelation function")
         n = self._next_pow_two(len(x))
-
-        # Compute the FFT and then (from that) the auto-correlation function
         f = np.fft.fft(x - np.mean(x), n=2 * n)
         acf = np.fft.ifft(f * np.conjugate(f))[: len(x)].real
-        acf /= 4 * n
+        return acf / (4 * n)
 
-        # Optionally normalize
-        #if norm:
-        #    acf /= acf[0]
-
-        #return acf
-    
-    # Automated windowing procedure following Sokal (1989)
     def _auto_window(self, taus, c):
+        """
+        Automated window size selection for autocorrelation truncation.
+
+        Parameters
+        ----------
+        taus : np.ndarray
+            Autocorrelation time estimates.
+        c : float
+            Threshold multiplier.
+
+        Returns
+        -------
+        int
+            Truncation window index.
+        """
         m = np.arange(len(taus)) < c * taus
-        if np.any(m):
-            return np.argmin(m)
-        return len(taus) - 1
+        return np.argmin(m) if np.any(m) else len(taus) - 1
 
     def _autocorr_new(self, y, c=5.0):
+        """
+        Compute autocorrelation estimator for 2D array.
+
+        Parameters
+        ----------
+        y : np.ndarray
+            2D array of shape (n_walkers, n_steps).
+        c : float, optional
+            Window scaling constant.
+
+        Returns
+        -------
+        float
+            Final autocorrelation estimate.
+        """
         f = np.zeros(y.shape[1])
         for yy in y:
             f += self._autocorr_func_1d(yy)
@@ -192,32 +352,48 @@ class MCMC_model():
         taus = 2.0 * np.cumsum(f) - 1.0
         window = self._auto_window(taus, c)
         return taus[window]
-    
+
     def _get_chain(self, scaled=False):
-        """Get the 3D MCMC chain (niter, nwalkers, ndim), with burn-in discarded, optionally using scaled chain."""
-        if self.sampler is None:
-            raise Exception("Need to run model first!")
+        """
+        Return MCMC chain after discarding burn-in.
 
+        Parameters
+        ----------
+        scaled : bool, optional
+            If True, return scaled samples.
+
+        Returns
+        -------
+        np.ndarray
+            Chain of shape (niter, nwalkers, ndim).
+        """
         discard = min(self.discard, self.sampler.get_chain().shape[0])
-
-        if scaled:
-            if self.scaled_chain is None:
-                raise ValueError("Scaled chain has not been set.")
-            return self.scaled_chain[discard:, :, :]
-        else:
-            return self.sampler.get_chain()[discard:, :, :]
+        return self.scaled_chain[discard:, :, :] if scaled else self.sampler.get_chain()[discard:, :, :]
 
     def _get_flatchain(self, scaled=False):
-        """Get flattened chain (niter * nwalkers, ndim), with burn-in discarded, optionally scaled."""
-        chain = self._get_chain(scaled=scaled)
-        return chain.reshape((-1, self.ndim))
+        """
+        Return flattened MCMC chain.
+
+        Parameters
+        ----------
+        scaled : bool, optional
+            If True, use scaled samples.
+
+        Returns
+        -------
+        np.ndarray
+            Flattened chain of shape (niter * nwalkers, ndim).
+        """
+        return self._get_chain(scaled).reshape((-1, self.ndim))
 
     def _get_flatlogprob(self):
-        """Get flattened log-probability array (niter * nwalkers,) after discarding burn-in."""
-        if self.sampler is None:
-            raise Exception("Need to run model first!")
-        
-        total_iterations = self.sampler.get_chain().shape[0]
-        discard = min(self.discard, total_iterations)
-        return self.sampler.get_log_prob(discard=discard, flat=True)
+        """
+        Return flattened log-probability values after burn-in.
 
+        Returns
+        -------
+        np.ndarray
+            Flattened log probability array.
+        """
+        discard = min(self.discard, self.sampler.get_chain().shape[0])
+        return self.sampler.get_log_prob(discard=discard, flat=True)
