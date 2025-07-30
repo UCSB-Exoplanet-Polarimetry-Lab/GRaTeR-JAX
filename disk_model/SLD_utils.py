@@ -456,12 +456,14 @@ class PositionalStellarPSF(Jax_class):
         return jnp.concatenate([p_dict['stellar_weights'], p_dict['stellar_xs'], p_dict['stellar_ys']])
     
     @classmethod
-    @partial(jax.jit, static_argnames=['cls', 'num_images'])
-    def unpack_pars(cls, stellar_psf_params, num_images):
+    @partial(jax.jit, static_argnames=['cls'])
+    def unpack_pars(cls, stellar_psf_params):
         p_dict = {}
-        p_dict['stellar_weights'] = stellar_psf_params[0: num_images]
-        p_dict['stellar_xs'] = stellar_psf_params[num_images: 2*num_images]
-        p_dict['stellar_ys'] = stellar_psf_params[2*num_images: 3*num_images]
+        psf_refs = StellarPSFReference.reference_images
+        N, h, w = psf_refs.shape
+        p_dict['stellar_weights'] = stellar_psf_params[0: N]
+        p_dict['stellar_xs'] = stellar_psf_params[N: 2*N]
+        p_dict['stellar_ys'] = stellar_psf_params[2*N: 3*N]
         return p_dict
 
     @classmethod
@@ -469,7 +471,7 @@ class PositionalStellarPSF(Jax_class):
     def compute_stellar_psf_image(cls, stellar_psf_params, nx, ny):
         psf_refs = StellarPSFReference.reference_images  # [N, h, w]
         N, h, w = psf_refs.shape
-        p_dict = cls.unpack_pars(stellar_psf_params, N)
+        p_dict = cls.unpack_pars(stellar_psf_params)
 
         xx = jnp.arange(h).reshape(h, 1)  # shape (h, 1)
         yy = jnp.arange(w).reshape(1, w)  # shape (1, w)
