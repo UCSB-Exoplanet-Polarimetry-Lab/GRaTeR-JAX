@@ -1,266 +1,146 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from functools import partial
 from disk_model.SLD_utils import InterpolatedUnivariateSpline_SPF, Winnie_PSF
+from disk_model.jax_model_wrappers import jax_model, jax_model_spline, jax_model_winnie, jax_model_spline_winnie
+from disk_model.jax_gradient_wrappers import jax_model_grad, jax_model_spline_grad, jax_model_winnie_grad, jax_model_spline_winnie_grad, log_likelihood
 import matplotlib.pyplot as plt
 
 class Parameter_Index:
+    """
+    Default parameter sets for disk modeling components.
+
+    This class defines canonical parameter dictionaries used for optimization
+    and simulation of scattered light disks. These parameters act as templates
+    for packing and fitting routines and represent all modifiable physical and
+    observational quantities.
+
+    Attributes
+    ----------
+    disk_params : dict
+        Dictionary of physical parameters describing the disk geometry and density:
+            - accuracy : float
+                Numerical accuracy for integrators.
+            - alpha_in, alpha_out : float
+                Inner and outer radial density power-law slopes.
+            - sma : float
+                Semi-major axis (in pixels or AU, depending on model).
+            - e : float
+                Eccentricity of the disk.
+            - ksi0 : float
+                Azimuthal anisotropy parameter.
+            - gamma, beta : float
+                Vertical structure parameters.
+            - rmin : float
+                Inner radius cutoff.
+            - dens_at_r0 : float
+                Density normalization at reference radius.
+            - inclination : float
+                Inclination angle (degrees).
+            - position_angle : float
+                Disk orientation on sky (degrees).
+            - x_center, y_center : float
+                Image center coordinates.
+            - halfNbSlices : int
+                Number of angular slices for 3D integration (half of total).
+            - omega : float
+                Argument of pericenter (in radians or degrees).
+
+    misc_params : dict
+        Dictionary of observational and image grid parameters:
+            - distance : float
+                Distance to the system (in parsecs).
+            - pxInArcsec : float
+                Pixel scale (arcseconds per pixel).
+            - nx, ny : int
+                Image dimensions (width and height in pixels).
+            - halfNbSlices : int
+                Number of angular slices for rendering (should match disk_params).
+            - flux_scaling : float
+                Normalization factor for model brightness.
+
+    Notes
+    -----
+    Parameter dictionaries for scattering phase functions (SPFs), PSFs, and stellar PSFs
+    are defined in `SLD_utils.py`. Spline SPFs and Winnie PSFs use instantiated
+    model classes (e.g., `InterpolatedUnivariateSpline_SPF`, `Winnie_PSF`).
+    """
     
     disk_params = {'accuracy': 5.e-3, 'alpha_in': 5, 'alpha_out': -5, 'sma': 50, 'e': 0., 'ksi0': 3., 'gamma': 2., 'beta': 1., 'rmin': 0.,
                 'dens_at_r0': 1., 'inclination': 0, 'position_angle': 0, 'x_center': 70., 'y_center': 70., 'halfNbSlices': 25, 'omega': 0.,}
 
-    misc_params = {'distance': 50., 'pxInArcsec': 0.01414, 'nx': 140, 'ny': 140, 'halfNbSlices': 25, 'flux_scaling': 1e6}  # Don't change this
-
-    #####
-    # Parameter Dictionaries for SPFs and PSFs are given in SLD_utils.py in their param fields
-    # params for InterpolatedUnivariateSpline_SPF and Winne_PSF is just an instance of WinniePSF (winnie_class.py) itself
+    misc_params = {'distance': 50., 'pxInArcsec': 0.01414, 'nx': 140, 'ny': 140, 'halfNbSlices': 25, 'flux_scaling': 1e6}
 
 
-# General use case
 def pack_pars(p_dict, orig_dict):
     """
-    This function takes a parameter dictionary and packs it into a JAX array
-    where the order is set by the parameter name list defined on the class.
-    """    
+    Pack parameter values from a dictionary into a JAX array.
+
+    The output array follows the key order defined in `orig_dict`, which is
+    typically a template dictionary that defines the parameter structure.
+    This is how jax classes are wrapped in the JAX code.
+
+    Parameters
+    ----------
+    p_dict : dict
+        Dictionary of parameter values to be packed. Keys must match those in `orig_dict`.
+    orig_dict : dict
+        Reference dictionary that defines the desired key ordering.
+
+    Returns
+    -------
+    jnp.ndarray
+        JAX array of parameter values in the order defined by `orig_dict`.
+    """
     p_arrs = []
     for name in orig_dict.keys():
         p_arrs.append(p_dict[name])
     return jnp.asarray(p_arrs)
 
-@jax.jit
-def log_likelihood(image, target_image, err_map):
-    safe = jnp.greater(err_map, 0)
-    sigma2 = jnp.power(err_map, 2)
-    faulty_result = jnp.power((target_image - image), 2) / (sigma2+1e-40) + jnp.log(sigma2+1e-40)
-    result = jnp.where(safe, faulty_result, 0.)
-    return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
 
-@jax.jit
-def residuals(image,target_image,err_map):
-    """
-    residuals for use in objective function
-    """
-    safe = jnp.greater(err_map, 0)
-    sigma2 = jnp.power(err_map, 2)
-    faulty_result = jnp.power((target_image - image), 2) / (sigma2+1e-40) + jnp.log(sigma2+1e-40)
-    result = jnp.where(safe, faulty_result, 0.)
-    return result
-
-def plot_fit_output(target_image,err_map,model_image,target_name='unknown',save=False):
-    """
-    plotting function for residuals, image, and model
-    """
-    fig, ax = plt.subplots(1,3)
-    ax[0].imshow(target_image,origin='lower')
-    ax[1].imshow(model_image,origin='lower')
-    ax[2].imshow(residuals(model_image, target_image, err_map),origin='lower')
-    ax[0].set_title('Data')
-    ax[1].set_title('Model')
-    ax[2].set_title('Residuals')
-    plt.tight_layout()
-    if save==True:
-        plt.savefig('{}_modelcomp.png'.format(target_name))
-    plt.show()
-
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
-              distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
-
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, spf_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    if PSFModel != None:
-        scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
-
-    scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return scattered_light_image
-
-
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
-
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, spf_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
-
-    scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return scattered_light_image
-
-
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
-                     knots=jnp.linspace(1,-1,6)):
-
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-
-    func_params = FuncModel.pack_pars(spf_params, knots=knots)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, func_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    if PSFModel != None:
-        scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return scattered_light_image
-
-
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
-                     flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
-
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-
-    func_params = FuncModel.pack_pars(spf_params, knots=knots)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, func_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return scattered_light_image
-
-### Objective Functions
+"""
+These objective functions serve as the middleware that connects the Optimizer class to the lower level JAX code.
+"""
 
 def objective_model(disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, stellar_psf_params=None, StellarPSFModel=None, **kwargs):
 
     """
-    Objective function for optimization that updates only the selected parameters.
+    Generate a disk model image given disk, scattering function, point spread function, stellar psf point spread function,
+    and misceallaneous parameters.
+
+    disk_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    misc_params : dict of (str, float) pairs
+        The parameter dictionary for misceallanious values, such as image size and flux scaling, dictionary is
+        made of (parameter name, parameter value) pairs.
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    stellar_psf_params : dict of (str, float) pairs, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    kwargs : dict, optional
+        Additional keyword arguments that are passed into the objective model function.
+        
+    Returns
+    -------
+    jnp.ndarray
+        Generated disk model image
     """
 
     if StellarPSFModel is None:
@@ -317,7 +197,45 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
                        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
                        **kwargs):
     """
-    Objective function for optimization that updates only the selected parameters.
+    Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
+    stellar psf point spread function, and misceallaneous parameters along with the target image and error map.
+
+    disk_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    misc_params : dict of (str, float) pairs
+        The parameter dictionary for misceallanious values, such as image size and flux scaling, dictionary is
+        made of (parameter name, parameter value) pairs.
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    stellar_psf_params : dict of (str, float) pairs, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    kwargs : dict, optional
+        Additional keyword arguments that are passed into the objective model function.
+        
+    Returns
+    -------
+    float
+        Log likelihood for the generated disk image, target image, and error map
     """
 
     model_image = objective_model(
@@ -335,7 +253,52 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
                        stellar_psf_params = None, StellarPSFModel = None, **kwargs):
     """
-    Objective function for optimization that updates only the selected parameters.
+    Same as the objective_ll function but accepts replacement values for the given parameters in fit_keys.
+    This is ideal for fitting as it provides a clean objective function for a given set of parameters.
+
+    ex: fit_keys = ['alpha_in', 'alpha_out'], params_fit = [-5., 5.], the function will compute the
+    log-likelihood for the given parameters while replacing alpha_in with -5 and alpha_out with 5.
+
+    params_fit : list of float
+        The replacement values for the parameters indicated by fit_keys.
+    fit_keys : list of str
+        The names of the parameters to have their values be replaced by the corresponding values in params_fit.
+    disk_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    misc_params : dict of (str, float) pairs
+        The parameter dictionary for misceallanious values, such as image size and flux scaling, dictionary is
+        made of (parameter name, parameter value) pairs.
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    stellar_psf_params : dict of (str, float) pairs, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    kwargs : dict, optional
+        Additional keyword arguments that are passed into the objective model function.
+        
+    Returns
+    -------
+    float
+        Log likelihood for the generated disk image, target image, and error map
     """
 
     if StellarPSFModel is None:
@@ -412,221 +375,58 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
 
     return log_likelihood(model_image, target_image, err_map)
 
-# GRADIENT STUFF
 
-#@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_scalar(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
-              distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
-
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, spf_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    if PSFModel != None:
-        scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return log_likelihood(scattered_light_image, target_image, err_map)
-
-
-#@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_winnie_scalar(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
-
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, spf_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return log_likelihood(scattered_light_image, target_image, err_map)
-
-
-#@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_spline_scalar(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
-                     knots=jnp.linspace(1,-1,6)):
-
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-
-    func_params = FuncModel.pack_pars(spf_params, knots=knots)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, func_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    if PSFModel != None:
-        scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return log_likelihood(scattered_light_image, target_image, err_map)
-
-
-#@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_spline_winnie_scalar(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
-                     flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
-
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-
-    func_params = FuncModel.pack_pars(spf_params, knots=knots)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, func_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return log_likelihood(scattered_light_image, target_image, err_map)
-
-# JAX GRADS (comment out whatever grad functions you don't need to save gpu memory)
-
-jax_model_grad = jax.jit(jax.grad(jax_model_scalar, argnums=(5, 6, 7, 8)),
-                                static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
-
-jax_model_winnie_grad = jax.jit(jax.grad(jax_model_winnie_scalar, argnums=(5, 6, 8)),
-                                static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
-
-jax_model_spline_grad = jax.jit(jax.grad(jax_model_spline_scalar, argnums=(5, 6, 7, 8)),
-                                static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
-
-jax_model_spline_winnie_grad = jax.jit(jax.grad(jax_model_spline_winnie_scalar, argnums=(5, 6, 8)),
-                                static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
-
-def objective_grad(keys, disk_params, spf_params, psf_params, misc_params,
+def objective_grad(disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
                        stellar_psf_params = None, StellarPSFModel = None,
                         **kwargs):
+    """
+    Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
+    disk, scattering function, point spread function, stellar psf point spread function, and misceallaneous parameters
+    along with the target image and error map.
+
+    disk_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    misc_params : dict of (str, float) pairs
+        The parameter dictionary for misceallanious values, such as image size and flux scaling, dictionary is
+        made of (parameter name, parameter value) pairs.
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    stellar_psf_params : dict of (str, float) pairs, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    kwargs : dict, optional
+        Additional keyword arguments that are passed into the objective model function.
+        
+    Returns
+    -------
+    list of jnp array
+        Gradients of all the parameters with the format (gradients of disk params, gradients of spf params,
+        gradients of psf_params, gradients of stellar psf params)
+
+        Note: if the psf model is a WinniePSF, the gradients of psf_params will not be included in the output.
+        Note: not all parameters are supported for gradient evaluation due to limitations of the JAX model.
+        Note: the raw gradient output is transformed in the Optimizer class which wraps this method nicely.
+    """
     
     if StellarPSFModel is None:
         stellar_psf_params = 0.
@@ -686,7 +486,62 @@ def objective_grad(keys, disk_params, spf_params, psf_params, misc_params,
 def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
                        stellar_psf_params = None, StellarPSFModel = None, **kwargs):
-    
+    """
+    Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
+    disk, scattering function, point spread function, stellar psf point spread function, and misceallaneous parameters
+    along with the target image and error map.
+
+    ex: fit_keys = ['alpha_in', 'alpha_out'], params_fit = [-5., 5.], the function will compute the
+    gradients for all the parameters with respect to the log-likelihood for the given parameters
+    while replacing alpha_in with -5 and alpha_out with 5.
+
+    params_fit : list of float
+        The replacement values for the parameters indicated by fit_keys.
+    fit_keys : list of str
+        The names of the parameters to have their values be replaced by the corresponding values in params_fit.
+    disk_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    misc_params : dict of (str, float) pairs
+        The parameter dictionary for misceallanious values, such as image size and flux scaling, dictionary is
+        made of (parameter name, parameter value) pairs.
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    stellar_psf_params : dict of (str, float) pairs, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    kwargs : dict, optional
+        Additional keyword arguments that are passed into the objective model function.
+        
+    Returns
+    -------
+    list of jnp array
+        Gradients of all the parameters with the format (gradients of disk params, gradients of spf params,
+        gradients of psf_params, gradients of stellar psf params)
+
+        Note: if the psf model is a WinniePSF, the gradients of psf_params will not be included in the output.
+        Note: not all parameters are supported for gradient  evaluation due to limitations of the JAX model.
+        Note: the raw gradient output is transformed in the Optimizer class which wraps this method nicely.
+    """
+
     if StellarPSFModel is None:
         stellar_psf_params = 0.
     if PSFModel is None:

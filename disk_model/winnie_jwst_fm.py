@@ -7,6 +7,10 @@ from joblib import Parallel, delayed
 
 webbpsf_ext.setup_logging('WARN')
 
+"""
+This class is taken from Kellen Lawson's Winnie package. This file is only used for the generate_nircam_psfs_grid function.
+"""
+
 def raw_model_to_convolved_model_cube(input_im, parangs, psfs, psf_inds, im_mask=None, cent=None, use_gpu=False, ncores=-2):
     """
     Creates a PSF-convolved sequence of model images at the indicated parangs (the parallactic angles of a data sequence).

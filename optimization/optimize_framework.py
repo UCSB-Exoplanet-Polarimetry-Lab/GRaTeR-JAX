@@ -8,42 +8,79 @@ import json
 
 # Built for new objective function
 class Optimizer:
-    def __init__(self, disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel,
-                 PSFModel, StellarPSFModel = None, stellar_psf_params = None, **kwargs):
-        self.disk_params = disk_params
-        self.spf_params = spf_params
-        self.psf_params = psf_params
-        self.stellar_psf_params = stellar_psf_params
-        self.misc_params = misc_params
+    """
+    The Optimizer class is the high level wrapper for the GRaTeR-JAX framework and all of its functionality.
+    It handles all of the supported parameters for the disk morphology, scattering phase function, off axis
+    point spread function, miscellaneous, and on axis stelllar psf parameters. The optimizer class is meant
+    to update in place as the user uses various optimization and modification methods. To save a current
+    disk model before using an optimization method, you can save a copy of the current Optimizer object.
+
+    Parameters
+    ----------
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    disk_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : dict of (str, float) pairs
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    misc_params : dict of (str, float) pairs
+        The parameter dictionary for misceallanious values, such as image size and flux scaling, dictionary is
+        made of (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    stellar_psf_params : dict of (str, float) pairs, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    kwargs : dict, optional
+        Additional keyword arguments that are passed into the objective model function.
+    """
+    def __init__(self, DiskModel, DistrModel, FuncModel, PSFModel, disk_params, spf_params, psf_params,
+                 misc_params, StellarPSFModel = None, stellar_psf_params = None, **kwargs):
         self.DiskModel = DiskModel
         self.DistrModel = DistrModel
         self.FuncModel = FuncModel
         self.PSFModel = PSFModel
         self.StellarPSFModel = StellarPSFModel
+        self.disk_params = disk_params
+        self.spf_params = spf_params
+        self.psf_params = psf_params
+        self.stellar_psf_params = stellar_psf_params
+        self.misc_params = misc_params
         self.kwargs = kwargs
         self.name = 'test'
         self.last_fit = None
 
     def jit_compile_model(self):
         """
-            Just-in-time compiles the disk model. Need to call again if any of the component classes are changed.
+        Just-in-time compiles the disk model. Need to call again if any of the component classes are changed.
         """
         self.get_model()
 
     def jit_compile_gradient(self, target_image, err_map):
         """
-            Just-in-time compiles the gradient of the disk model for a given target image and err_map.
+        Just-in-time compiles the gradient of the disk model for a given target image and err_map.
         """
         self.get_gradient([], target_image, err_map)
 
     def get_model(self):
         """
-            Returns the disk model as per the current parameters.
+        Returns the disk model as per the current parameters.
 
-            Returns
-            -------
-            numpy.ndarray
-                2d image of the generated disk model
+        Returns
+        -------
+        numpy.ndarray
+            2d image of the generated disk model
         """
         return objective_model(
             self.disk_params, self.spf_params, self.psf_params, self.misc_params,
@@ -54,23 +91,23 @@ class Optimizer:
     
     def get_objective_likelihood(self, params_fit, fit_keys, target_image, err_map):
         """
-            Returns the log likelihood of the disk model as per the given parameters, target image, and error map.
+        Returns the log likelihood of the disk model as per the given parameters, target image, and error map.
 
-            Parameters
-            ----------
-            params_fit: list of float
-                List of parameter values that are set to replace the original values of the parameters specified by fit_keys.
-            fit_keys: list of str
-                List of names of parameters that are set to be replaced by values in params_fit.
-            target_image: numpy.ndarray
-                Target image that the log likelihood is being computed with.
-            err_map: numpy.ndarray
-                Error map of same shape as target image that the log likelihood is being computed with.
+        Parameters
+        ----------
+        params_fit: list of float
+            List of parameter values that are set to replace the original values of the parameters specified by fit_keys.
+        fit_keys: list of str
+            List of names of parameters that are set to be replaced by values in params_fit.
+        target_image: numpy.ndarray
+            Target image that the log likelihood is being computed with.
+        err_map: numpy.ndarray
+            Error map of same shape as target image that the log likelihood is being computed with.
 
-            Returns:
-            --------
-            float
-                Log likelihood value of the current model.
+        Returns:
+        --------
+        float
+            Log likelihood value of the current model.
         """
         return objective_fit(
             params_fit, fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
@@ -80,46 +117,46 @@ class Optimizer:
     
     def get_gradient(self, keys, target_image, err_map):
         """
-            Returns the gradient of the disk model for the given target image and error map for the parameters specified in keys.
-            Note: Log-scaling is not handled in this method.
+        Returns the gradient of the disk model for the given target image and error map for the parameters specified in keys.
+        Note: Log-scaling is not handled in this method. Some parameters may not work.
 
-            Parameters
-            ----------
-            keys: list of str
-                Names of parameters that the gradient is being computed for.
-            target_image: numpy.ndarray
-                Target image that the gradient is being computed with.
-            err_map: numpy.ndarray
-                Error map of same shape as target image that the gradient is being computed with.
+        Parameters
+        ----------
+        keys: list of str
+            Names of parameters that the gradient is being computed for.
+        target_image: numpy.ndarray
+            Target image that the gradient is being computed with.
+        err_map: numpy.ndarray
+            Error map of same shape as target image that the gradient is being computed with.
 
-            Returns:
-            --------
-            list
-                Gradient of the specified values in keys. Gradients returned in the same order as keys.
+        Returns:
+        --------
+        list
+            Gradient of the specified values in keys. Gradients returned in the same order as keys.
         """
         return self._convert_raw_gradient_output_to_readable_output(keys, self._get_raw_gradient(target_image, err_map))
     
     def get_objective_gradient(self, params_fit, fit_keys, target_image, err_map):
         """
-            Objective function for returning the gradient of the disk model for the given target image and error map for
-            the log likelihood. Takes in a list of parameters and their new values and outputs their gradients. Note:
-            Log-scaling is not handled in this method.
+        Objective function for returning the gradient of the disk model for the given target image and error map for
+        the log likelihood. Takes in a list of parameters and their new values and outputs their gradients. Note:
+        Log-scaling is not handled in this method. Some parameters may not work
 
-            Parameters
-            ----------
-            params_fit: list of float
-                List of parameter values that are set to replace the original values of the parameters specified by fit_keys.
-            fit_keys: list of str
-                Names of parameters that the gradient is being computed for.
-            target_image: numpy.ndarray
-                Target image that the gradient is being computed with.
-            err_map: numpy.ndarray
-                Error map of same shape as target image that the gradient is being computed with.
+        Parameters
+        ----------
+        params_fit: list of float
+            List of parameter values that are set to replace the original values of the parameters specified by fit_keys.
+        fit_keys: list of str
+            Names of parameters that the gradient is being computed for.
+        target_image: numpy.ndarray
+            Target image that the gradient is being computed with.
+        err_map: numpy.ndarray
+            Error map of same shape as target image that the gradient is being computed with.
 
-            Returns:
-            --------
-            numpy.ndarray
-                Gradient of the specified values in fit_keys. Gradients returned in the same order as fit_keys.
+        Returns:
+        --------
+        numpy.ndarray
+            Gradient of the specified values in fit_keys. Gradients returned in the same order as fit_keys.
         """
         return self._convert_raw_gradient_output_to_1d_array(fit_keys, objective_fit_grad(params_fit, fit_keys, self.disk_params,
             self.spf_params, self.psf_params, self.misc_params, self.DiskModel, self.DistrModel, self.FuncModel,
@@ -129,14 +166,14 @@ class Optimizer:
     
     def get_disk(self):
         """
-            Returns the disk model as per the current parameters without the off-axis psf nor stellar psf. Note: will take
-            longer to run the first time as it needs to be JIT compiled due to the changing of the component classes for
-            the objective function call.
+        Returns the disk model as per the current parameters without the off-axis psf nor stellar psf. Note: will take
+        longer to run the first time as it needs to be JIT compiled due to the changing of the component classes for
+        the objective function call.
 
-            Returns
-            -------
-            numpy.ndarray
-                2d image of the generated disk model.
+        Returns
+        -------
+        numpy.ndarray
+            2d image of the generated disk model.
         """
         return objective_model(
             self.disk_params, self.spf_params, None, self.misc_params,
@@ -376,8 +413,6 @@ class Optimizer:
                 else:
                     bounds.append((low[0], high[0]))
             i+=1
-
-        print(check_grad(ll, jac, init_x))
 
         soln = minimize(ll, init_x, method='L-BFGS-B', bounds=bounds, jac=jac,
                         options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
@@ -1066,7 +1101,7 @@ class Optimizer:
             Tuple containing raw gradients for (disk_params, spf_params, psf_params, stellar_psf_params).
         """
         return objective_grad(
-            [], self.disk_params, self.spf_params, self.psf_params, self.misc_params, self.DiskModel,
+            self.disk_params, self.spf_params, self.psf_params, self.misc_params, self.DiskModel,
             self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
             stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel, **self.kwargs
         )
