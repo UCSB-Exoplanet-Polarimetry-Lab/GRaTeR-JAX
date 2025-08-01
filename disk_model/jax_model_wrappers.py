@@ -5,6 +5,56 @@ from functools import partial
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
 def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
               distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+    """
+    Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
+    spread function, and misceallaneous parameters along with the target image and error map. This function only
+    applies when PSFModel != Winnie_PSF and FuncModel != InterpolatedUnivariateSpline_SPF.
+    
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    disk_params : jnp.array
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : jnp.array
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : jnp.array
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    stellar_psf_params : jnp.array, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    distance : float
+        Distance to the star in pc (default 70.)
+    pxInArcsec : float
+        Pixel field of view in arcsec/px (default the SPHERE pixel
+        scale 0.01225 arcsec/px)
+    nx : int
+        number of pixels along the x axis of the image (default 200)
+    ny : int
+        number of pixels along the y axis of the image (default 200)
+    halfNbSlices : integer
+        half number of distances along the line of sight
+    flux_scaling : float
+        Scaling factor for disk model.
+            
+    Returns
+    -------
+    jnp.ndarray
+        Generated disk model image
+    """
 
     distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
                                    e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
@@ -52,6 +102,53 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
 def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params,
                      distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+    """
+    Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
+    spread function, and misceallaneous parameters along with the target image and error map. This function only
+    applies when PSFModel == Winnie_PSF and FuncModel != InterpolatedUnivariateSpline_SPF.
+    
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    winnie_psf : class (Can be found in disk_model/winnie_class.py)
+        JWST off axis PSF, modeled after Winnie framework
+    disk_params : jnp.array
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : jnp.array
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    stellar_psf_params : jnp.array, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    distance : float
+        Distance to the star in pc (default 70.)
+    pxInArcsec : float
+        Pixel field of view in arcsec/px (default the SPHERE pixel
+        scale 0.01225 arcsec/px)
+    nx : int
+        number of pixels along the x axis of the image (default 200)
+    ny : int
+        number of pixels along the y axis of the image (default 200)
+    halfNbSlices : integer
+        half number of distances along the line of sight
+    flux_scaling : float
+        Scaling factor for disk model.
+            
+    Returns
+    -------
+    jnp.ndarray
+        Generated disk model image
+    """
 
     distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
                                    e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
@@ -99,6 +196,56 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
 def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
                      distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
                      knots=jnp.linspace(1,-1,6)):
+    """
+    Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
+    spread function, and misceallaneous parameters along with the target image and error map. This function only
+    applies when PSFModel != Winnie_PSF and FuncModel == InterpolatedUnivariateSpline_SPF.
+    
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    PSFModel : class (Can be found in disk_model/SLD_utils.py)
+        The point spread function model type
+    disk_params : jnp.array
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : jnp.array
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : jnp.array
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    stellar_psf_params : jnp.array, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    distance : float
+        Distance to the star in pc (default 70.)
+    pxInArcsec : float
+        Pixel field of view in arcsec/px (default the SPHERE pixel
+        scale 0.01225 arcsec/px)
+    nx : int
+        number of pixels along the x axis of the image (default 200)
+    ny : int
+        number of pixels along the y axis of the image (default 200)
+    halfNbSlices : integer
+        half number of distances along the line of sight
+    flux_scaling : float
+        Scaling factor for disk model.
+            
+    Returns
+    -------
+    jnp.ndarray
+        Generated disk model image
+    """
 
     distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
                                    e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
@@ -149,6 +296,56 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
 def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params,
                      distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
                      flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
+    """
+    Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
+    spread function, and misceallaneous parameters along with the target image and error map. This function only
+    applies when PSFModel == Winnie_PSF and FuncModel == InterpolatedUnivariateSpline_SPF.
+    
+    DiskModel : class (ScatteredLighDisk is the only supported disk model)
+        The disk model type
+    DistrModel : class (DustEllipticalDistribution2PowerLaws is the only supported dust distribution model)
+        The dust distribution model type
+    FuncModel : class (Can be found in disk_model/SLD_utils.py)
+        The scattering phase function model type
+    winnie_psf : class (Can be found in disk_model/winnie_class.py)
+        JWST off axis PSF, modeled after Winnie framework
+    disk_params : jnp.array
+        The corresponding parameter dictionary for the disk model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    spf_params : jnp.array
+        The corresponding parameter dictionary for the scattering phase function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    psf_params : jnp.array
+        The corresponding parameter dictionary for the point spread function, dictionary is made of
+        (parameter name, parameter value) pairs.
+    StellarPSFModel : class, optional
+        The scattering phase function model type, set to None be default indicating no stellar psf model.
+    stellar_psf_params : jnp.array, optional
+        The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
+        (parameter name, parameter value) pairs.
+    target_image : np.ndarray
+        The target image that the log likelihood is being computed for.
+    err_map : np.ndarray
+        The error map for the target image.
+    distance : float
+        Distance to the star in pc (default 70.)
+    pxInArcsec : float
+        Pixel field of view in arcsec/px (default the SPHERE pixel
+        scale 0.01225 arcsec/px)
+    nx : int
+        number of pixels along the x axis of the image (default 200)
+    ny : int
+        number of pixels along the y axis of the image (default 200)
+    halfNbSlices : integer
+        half number of distances along the line of sight
+    flux_scaling : float
+        Scaling factor for disk model.
+            
+    Returns
+    -------
+    jnp.ndarray
+        Generated disk model image
+    """
 
     distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
                                    e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],

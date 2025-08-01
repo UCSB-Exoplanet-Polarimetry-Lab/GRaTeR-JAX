@@ -8,7 +8,62 @@ import matplotlib.pyplot as plt
 
 class Parameter_Index:
     """
-    Default parameters that show all the possible parameters that can be modified and fit for.
+    Default parameter sets for disk modeling components.
+
+    This class defines canonical parameter dictionaries used for optimization
+    and simulation of scattered light disks. These parameters act as templates
+    for packing and fitting routines and represent all modifiable physical and
+    observational quantities.
+
+    Attributes
+    ----------
+    disk_params : dict
+        Dictionary of physical parameters describing the disk geometry and density:
+            - accuracy : float
+                Numerical accuracy for integrators.
+            - alpha_in, alpha_out : float
+                Inner and outer radial density power-law slopes.
+            - sma : float
+                Semi-major axis (in pixels or AU, depending on model).
+            - e : float
+                Eccentricity of the disk.
+            - ksi0 : float
+                Azimuthal anisotropy parameter.
+            - gamma, beta : float
+                Vertical structure parameters.
+            - rmin : float
+                Inner radius cutoff.
+            - dens_at_r0 : float
+                Density normalization at reference radius.
+            - inclination : float
+                Inclination angle (degrees).
+            - position_angle : float
+                Disk orientation on sky (degrees).
+            - x_center, y_center : float
+                Image center coordinates.
+            - halfNbSlices : int
+                Number of angular slices for 3D integration (half of total).
+            - omega : float
+                Argument of pericenter (in radians or degrees).
+
+    misc_params : dict
+        Dictionary of observational and image grid parameters:
+            - distance : float
+                Distance to the system (in parsecs).
+            - pxInArcsec : float
+                Pixel scale (arcseconds per pixel).
+            - nx, ny : int
+                Image dimensions (width and height in pixels).
+            - halfNbSlices : int
+                Number of angular slices for rendering (should match disk_params).
+            - flux_scaling : float
+                Normalization factor for model brightness.
+
+    Notes
+    -----
+    Parameter dictionaries for scattering phase functions (SPFs), PSFs, and stellar PSFs
+    are defined in `SLD_utils.py`. Spline SPFs and Winnie PSFs use instantiated
+    model classes (e.g., `InterpolatedUnivariateSpline_SPF`, `Winnie_PSF`).
     """
     
     disk_params = {'accuracy': 5.e-3, 'alpha_in': 5, 'alpha_out': -5, 'sma': 50, 'e': 0., 'ksi0': 3., 'gamma': 2., 'beta': 1., 'rmin': 0.,
@@ -16,19 +71,32 @@ class Parameter_Index:
 
     misc_params = {'distance': 50., 'pxInArcsec': 0.01414, 'nx': 140, 'ny': 140, 'halfNbSlices': 25, 'flux_scaling': 1e6}
 
-    #####
-    # Parameter Dictionaries for SPFs, PSFs, and Stellar PSFs are given in SLD_utils.py in their param fields.
-    # params for InterpolatedUnivariateSpline_SPF and Winne_PSF is just an instance of WinniePSF (winnie_class.py) itself
 
 def pack_pars(p_dict, orig_dict):
     """
-    This function takes a parameter dictionary and packs it into a JAX array
-    where the order is set by the parameter name list defined on the class.
-    """    
+    Pack parameter values from a dictionary into a JAX array.
+
+    The output array follows the key order defined in `orig_dict`, which is
+    typically a template dictionary that defines the parameter structure.
+    This is how jax classes are wrapped in the JAX code.
+
+    Parameters
+    ----------
+    p_dict : dict
+        Dictionary of parameter values to be packed. Keys must match those in `orig_dict`.
+    orig_dict : dict
+        Reference dictionary that defines the desired key ordering.
+
+    Returns
+    -------
+    jnp.ndarray
+        JAX array of parameter values in the order defined by `orig_dict`.
+    """
     p_arrs = []
     for name in orig_dict.keys():
         p_arrs.append(p_dict[name])
     return jnp.asarray(p_arrs)
+
 
 """
 These objective functions serve as the middleware that connects the Optimizer class to the lower level JAX code.
