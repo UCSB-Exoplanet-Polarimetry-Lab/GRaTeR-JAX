@@ -423,10 +423,14 @@ class Winnie_PSF(Jax_class):
     
 class StellarPSFReference:
 
+    """
+    Reference images that the Stellar PSF classes will use.
+    """
+
     reference_images = jnp.zeros((10, 10))
 
 class LinearStellarPSF(Jax_class):
-    params = {'stellar_weights': None}
+    params = {'stellar_weights': None}  # Linear weights for each of the reference images.
 
     @classmethod
     @partial(jax.jit, static_argnames=['cls'])
@@ -443,12 +447,18 @@ class LinearStellarPSF(Jax_class):
     @classmethod
     @partial(jax.jit, static_argnames=['cls', 'nx', 'ny'])
     def compute_stellar_psf_image(cls, stellar_weights, nx, ny):
+        """
+        Computes the on axis psf from the reference images and linear weights. Resizes the
+        final image to (nx, ny).
+        """
         image = jnp.tensordot(stellar_weights, StellarPSFReference.reference_images, axes=1)
         resized = jax.image.resize(image, (nx, ny), method='linear')
         return resized
     
 class PositionalStellarPSF(Jax_class):
     params = {'stellar_weights': None, 'stellar_xs': None, 'stellar_ys': None}
+    # Stellar weights : Linear weights for each of the reference images
+    # Stellar xs and Stellar ys : X and Y positions for each of the reference images
 
     @classmethod
     @partial(jax.jit, static_argnames=['cls'])
@@ -469,6 +479,10 @@ class PositionalStellarPSF(Jax_class):
     @classmethod
     @partial(jax.jit, static_argnames=["cls", "nx", "ny"])
     def compute_stellar_psf_image(cls, stellar_psf_params, nx, ny):
+        """
+        Efficiently computes the resulting stellar psf from the linear weights,
+        x positions, and y positions. Resizes the final image to (nx, ny).
+        """
         psf_refs = StellarPSFReference.reference_images  # [N, h, w]
         N, h, w = psf_refs.shape
         p_dict = cls.unpack_pars(stellar_psf_params)

@@ -8,6 +8,11 @@ import matplotlib.pyplot as plt
 import corner
 from random import random
 
+"""
+Deprecated class for an older version of the GRaTeR-JAX package. Kept in because there will be
+support for HMC leveraging the gradient in the future.
+"""
+
 class HMC_model:
     def __init__(self, fun, theta_bounds, rng_key=None):
         self.fun = fun

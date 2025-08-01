@@ -414,8 +414,6 @@ class Optimizer:
                     bounds.append((low[0], high[0]))
             i+=1
 
-        print(check_grad(ll, jac, init_x))
-
         soln = minimize(ll, init_x, method='L-BFGS-B', bounds=bounds, jac=jac,
                         options={'disp': True, 'maxiter': iters, 'ftol': ftol, 'gtol': gtol, 'eps': eps})
         
