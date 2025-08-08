@@ -1,7 +1,7 @@
 # Configuration file for the Sphinx documentation builder.
 
 project = "GRaTeR-JAX"
-author = "Your Name"
+author = "Mihir Kondapalli"
 release = "0.1.0"
 
 extensions = [
