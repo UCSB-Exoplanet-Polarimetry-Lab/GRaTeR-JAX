@@ -2,7 +2,7 @@ API Reference
 =============
 
 .. autosummary::
-   :toctree: .
+   :toctree: modules
    :recursive:
 
    disk_model
