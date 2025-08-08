@@ -1,15 +1,12 @@
 API Reference
 =============
 
-.. toctree::
-   :maxdepth: 2
-   :hidden:
+.. autosummary::
+   :toctree: .
+   :recursive:
 
-   modules/disk_model
-   modules/optimization
-   modules/stpsf_utils
-
-.. rubric:: Modules
+   disk_model
+   optimization
 
 .. automodule:: disk_model
    :members:
