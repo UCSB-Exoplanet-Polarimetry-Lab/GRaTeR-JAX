@@ -188,6 +188,5 @@ dependencies:
       - sphinx==8.2.3
       - myst-parser
       - sphinx-rtd-theme
-      - numpydoc
       - nbsphinx
 
