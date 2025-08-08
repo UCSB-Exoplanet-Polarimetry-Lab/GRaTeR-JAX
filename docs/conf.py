@@ -1,21 +1,42 @@
-# -- Project info -----------------------------------------------------
-project = "GRaTeR-JAX"
-author = "GRaTeR-JAX authors"
-release = "0.1.0"
+# -- Path setup --------------------------------------------------------------
+import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
 
-# -- General config ---------------------------------------------------
+# -- Project information -----------------------------------------------------
+project = 'GRaTeR-JAX'
+copyright = '2025, GRaTeR-JAX authors'
+author = 'GRaTeR-JAX authors'
+release = '0.1.0'
+
+# -- General configuration ---------------------------------------------------
 extensions = [
-    "myst_parser",              # allow Markdown
-    "sphinx.ext.autodoc",       # pull docstrings
-    "sphinx.ext.autosummary",   # generate API stubs
-    "sphinx.ext.napoleon",      # Google/NumPy style docstrings
+    'myst_parser',              # Markdown support
+    'sphinx.ext.autodoc',       # Pull docstrings from code
+    'sphinx.ext.autosummary',   # Generate API summary pages
+    'sphinx.ext.napoleon',      # Google/NumPy style docstrings
+    'numpydoc',                 # NumPy-style doc enhancements
+    'nbsphinx',                 # Render Jupyter notebooks
+    'sphinx_rtd_theme'          # Read the Docs theme
 ]
 
 autosummary_generate = True
-templates_path = ["_templates"]
-exclude_patterns = []
+templates_path = ['_templates']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-# If imports are heavy or require GPUs / external data, mock them here
+# Autodoc defaults — ensures methods are fully shown
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": True,
+    "inherited-members": True,
+    "show-inheritance": True,
+    "member-order": "bysource",
+}
+autodoc_typehints = "description"
+autodoc_typehints_format = "short"
+autosummary_imported_members = True
+
+# If heavy imports fail on RTD, mock them
 autodoc_mock_imports = [
     "jax", "jaxlib", "jaxopt",
     "astropy", "photutils",
@@ -23,32 +44,9 @@ autodoc_mock_imports = [
     "h5py", "xarray",
 ]
 
-# Make autodoc include members by default (so methods show up with docs)
-autodoc_default_options = {
-    "members": True,            # include class and module members
-    "undoc-members": True,      # include members without docstrings
-    "inherited-members": True,  # include inherited methods
-    "show-inheritance": True,   # show base classes
-    "member-order": "bysource", # keep source order (nicer than alphabetical)
-}
-
-# Nice typehint display
-autodoc_typehints = "description"  # put types in the description instead of signatures
-autodoc_typehints_format = "short"
-
-# If you re-export symbols and want them documented too:
-autosummary_imported_members = True
-
-# HTML theme
-html_theme = "sphinx_rtd_theme"  # or "alabaster"
-html_static_path = ["_static"]
+# -- Options for HTML output -------------------------------------------------
+html_theme = 'sphinx_rtd_theme'
+html_static_path = ['_static']
 
 # Newer Sphinx uses root_doc; default is "index" but set explicitly
 root_doc = "index"
-
-# Make sure your package can be imported by autodoc
-import os, sys
-# If your code is in the repo root as packages (e.g., disk_model/, optimization/):
-sys.path.insert(0, os.path.abspath(".."))
-# If you use a src/ layout, use this instead:
-# sys.path.insert(0, os.path.abspath("../src"))
