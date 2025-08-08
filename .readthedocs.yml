@@ -5,11 +5,9 @@ build:
   tools:
     python: "3.13"
 
-# Tell RTD to use your Conda environment file
 conda:
   environment: environment.yml
 
-# Optional: install your package in that environment
 python:
   install:
     - method: pip
