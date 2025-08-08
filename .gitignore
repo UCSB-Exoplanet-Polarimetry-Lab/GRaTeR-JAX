@@ -4,9 +4,10 @@ __pycache__
 GPI_init_fit.ipynb
 GPI_init_fit.py
 hr4796a_H_pol_initial_fit.png
-cdbs/
+docs/cdbs/
 *.pyc
-stellar_psf_images/
-test_images/
-stpsf-data/
-tutorials/test_emcee_backend.h5
+docs/tutorials/stellar_psf_images/
+docs/tutorials/test_images/
+docs/stpsf-data/
+docs/tutorials/PSFs
+docs/tutorials/test_emcee_backend.h5

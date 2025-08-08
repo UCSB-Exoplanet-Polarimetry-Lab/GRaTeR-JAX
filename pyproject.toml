@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grater-jax-env"
+version = "0.1.0"
+description = "Jax powered scientific analysis and modeling tools for GRaTeR disks."
+authors = [
+    { name = "Mihir Kondapalli", email = "mihir.kondapalli@gmail.com" },
+    { name = "Briley Lewis", email = "brileylewis@g.ucla.edu" }
+]
+
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9"
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "pandas",
+    "astropy",
+    "emcee",
+    "jax",
+    "jaxlib",
+    "jaxopt",
+    "photutils",
+    "astroquery",
+    "poppy",
+    "stsynphot",
+    "synphot",
+    "webbpsf-ext",
+    "pysiaf",
+    "xarray",
+    "arviz",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "mypy"
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "myst-parser"
+]
