@@ -1,13 +1,24 @@
-
-```rst
 API Reference
 =============
 
-.. autosummary::
-   :toctree: .
-   :recursive:
+.. toctree::
+   :maxdepth: 2
+   :hidden:
 
-   disk_model
-   optimization
-   # Add/replace with your top-level packages/modules
-   # e.g. sldjax, stpsf_utils, etc.
+   modules/disk_model
+   modules/optimization
+   modules/stpsf_utils
+
+.. rubric:: Modules
+
+.. automodule:: disk_model
+   :members:
+   :undoc-members:
+   :inherited-members:
+   :show-inheritance:
+
+.. automodule:: optimization
+   :members:
+   :undoc-members:
+   :inherited-members:
+   :show-inheritance:
