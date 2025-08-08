@@ -1,4 +1,4 @@
-name: jwst_env
+name: grater-jax-env
 channels:
   - conda-forge
   - defaults
