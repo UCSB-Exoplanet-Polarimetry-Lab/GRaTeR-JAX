@@ -185,5 +185,9 @@ dependencies:
       - urllib3==2.3.0
       - webbpsf-ext==2.0.1
       - webencodings==0.5.1
+      - sphinx==8.2.3
       - myst-parser
       - sphinx-rtd-theme
+      - numpydoc
+      - nbsphinx
+
