@@ -33,7 +33,8 @@ pip install --upgrade "jax[cpu]"  # or "jax[cuda]" for GPU
 ### Refer to tutorials/FitsTutorial.ipynb for analyzing fits files, fitting disks to them, and running MCMC tests.
 
 Information about the disk and misc parameters can be found in objective_functions.py. Information about the
-scattering phase function and point spread function parameters can be found in SLD_utils.py.
+scattering phase function and point spread function parameters can be found in SLD_utils.py. Documentation is 
+under construction at [grater-jax.readthedocs.io](grater-jax.readthedocs.io).
 
 Check out [GRaTeR Image Generator](https://scattered-light-disks.vercel.app) to visualize how each of the parameters affect the disk model!
 
