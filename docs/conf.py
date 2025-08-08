@@ -23,6 +23,22 @@ autodoc_mock_imports = [
     "h5py", "xarray",
 ]
 
+# Make autodoc include members by default (so methods show up with docs)
+autodoc_default_options = {
+    "members": True,            # include class and module members
+    "undoc-members": True,      # include members without docstrings
+    "inherited-members": True,  # include inherited methods
+    "show-inheritance": True,   # show base classes
+    "member-order": "bysource", # keep source order (nicer than alphabetical)
+}
+
+# Nice typehint display
+autodoc_typehints = "description"  # put types in the description instead of signatures
+autodoc_typehints_format = "short"
+
+# If you re-export symbols and want them documented too:
+autosummary_imported_members = True
+
 # HTML theme
 html_theme = "sphinx_rtd_theme"  # or "alabaster"
 html_static_path = ["_static"]
