@@ -5,12 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "grater-jax-env"
 version = "0.1.0"
-description = "Jax powered scientific analysis and modeling tools for GRaTeR disks."
+description = "JAX-powered scientific analysis and modeling tools for GRaTeR disks."
 authors = [
     { name = "Mihir Kondapalli", email = "mihir.kondapalli@gmail.com" },
     { name = "Briley Lewis", email = "brileylewis@g.ucla.edu" }
 ]
-
 license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.9"
@@ -40,10 +39,21 @@ dependencies = [
 dev = [
     "pytest",
     "black",
-    "mypy"
+    "mypy",
 ]
 docs = [
-    "sphinx",
+    "sphinx==8.2.3",
     "sphinx-rtd-theme",
-    "myst-parser"
+    "myst-parser",
+    "nbsphinx",
 ]
+
+[tool.setuptools]
+# Option A: hard-code the package name (simplest)
+# packages = ["grater_jax"]
+
+# Option B: auto-discover but only include our package namespace
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["grater_jax*"]
+exclude = ["JOSS_docs*", "docs*", "tests*"]
