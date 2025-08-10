@@ -2,19 +2,19 @@ API Reference
 =============
 
 .. autosummary::
-   :toctree: modules
+   :toctree: generated
    :recursive:
 
-   disk_model
-   optimization
+   grater_jax.disk_model
+   grater_jax.optimization
 
-.. automodule:: disk_model
+.. automodule:: grater_jax.disk_model
    :members:
    :undoc-members:
    :inherited-members:
    :show-inheritance:
 
-.. automodule:: optimization
+.. automodule:: grater_jax.optimization
    :members:
    :undoc-members:
    :inherited-members:
