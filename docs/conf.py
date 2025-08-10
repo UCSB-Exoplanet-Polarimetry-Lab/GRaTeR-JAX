@@ -1,7 +1,9 @@
 # -- Path setup --------------------------------------------------------------
 import os
 import sys
-sys.path.insert(0, os.path.abspath('..'))
+
+# Add the project root (one level up from docs/)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # -- Project information -----------------------------------------------------
 project = 'GRaTeR-JAX'
@@ -15,18 +17,18 @@ extensions = [
     'sphinx.ext.autodoc',       # Pull docstrings from code
     'sphinx.ext.autosummary',   # Generate API summary pages
     'sphinx.ext.napoleon',      # Google/NumPy style docstrings
-    # 'numpydoc',               # Disabled: conflicts with wrapped/mocked JAX objects on Py3.13
     'nbsphinx',                 # Render Jupyter notebooks
     'sphinx_rtd_theme'          # Read the Docs theme
 ]
 
 autosummary_generate = True
 autosummary_imported_members = True
+autosummary_generate_overwrite = True
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
-# Autodoc defaults — ensures methods are fully shown
+# Autodoc defaults
 autodoc_default_options = {
     "members": True,
     "undoc-members": True,
@@ -43,10 +45,10 @@ autodoc_mock_imports = [
     "astropy", "photutils",
     "stpsf", "webbpsf_ext", "pysiaf", "poppy",
     "h5py", "xarray",
-    "numpyro",  # needed because optimization.* may import it
+    "numpyro",
 ]
 
-# Napoleon tweaks (let it fully replace numpydoc functionality)
+# Napoleon tweaks
 napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False
@@ -56,8 +58,11 @@ napoleon_attr_annotations = True
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
-# Set to [] if you don't have a _static directory to avoid warnings
-html_static_path = []  # or create docs/_static and use ['_static']
+html_static_path = []  # or ['_static'] if you have static assets
 
-# Newer Sphinx uses root_doc; default is "index" but set explicitly
+# Root doc for Sphinx >= 5
 root_doc = "index"
+
+# -- nbsphinx options --------------------------------------------------------
+nbsphinx_allow_errors = True
+nbsphinx_execute = 'never'  # Don’t run notebooks on RTD, just render them

@@ -1,10 +1,10 @@
-# GRaTeR-JAX
+GRaTeR-JAX
+==========
 
-Welcome! This is the documentation for **GRaTeR-JAX**.
+Welcome to the GRaTeR-JAX documentation!
 
-```{toctree}
-:maxdepth: 2
-:caption: Contents:
+.. toctree::
+   :maxdepth: 2
 
-getting-started
-api/index
+   api/index
+   tutorials/index
