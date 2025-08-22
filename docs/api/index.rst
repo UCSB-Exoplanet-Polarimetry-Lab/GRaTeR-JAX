@@ -1,21 +1,7 @@
 API Reference
 =============
 
-.. autosummary::
-   :toctree: generated
-   :recursive:
+.. toctree::
+   :maxdepth: 2
 
-   grater_jax.disk_model
-   grater_jax.optimization
-
-.. automodule:: grater_jax.disk_model
-   :members:
-   :undoc-members:
-   :inherited-members:
-   :show-inheritance:
-
-.. automodule:: grater_jax.optimization
-   :members:
-   :undoc-members:
-   :inherited-members:
-   :show-inheritance:
+   modules
