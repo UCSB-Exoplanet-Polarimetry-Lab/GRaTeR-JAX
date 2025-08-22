@@ -19,6 +19,7 @@ extensions = [
     'nbsphinx',                 # Render Jupyter notebooks
     'sphinx_rtd_theme',         # Read the Docs theme
 ]
+autosummary_generate = True
 
 # MyST config (handy but minimal)
 myst_enable_extensions = [
