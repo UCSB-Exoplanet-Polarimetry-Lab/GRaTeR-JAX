@@ -6,7 +6,7 @@ build:
     python: "mambaforge-22.9"
   jobs:
     pre_build:
-      - sphinx-apidoc -o docs/api grater_jax
+      - sphinx-apidoc -o docs/api grater_jax -e -f
 
 conda:
   environment: environment.yml
