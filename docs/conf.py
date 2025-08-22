@@ -53,6 +53,8 @@ autodoc_mock_imports = [
     "stpsf", "webbpsf_ext", "pysiaf", "poppy",
     "h5py", "xarray",
     "numpyro", "cupy",
+    # add these three ↓↓↓
+    "corner", "arviz", "emcee",
 ]
 
 # Napoleon tweaks
