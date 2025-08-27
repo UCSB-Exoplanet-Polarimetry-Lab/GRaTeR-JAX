@@ -33,7 +33,8 @@ autosummary_imported_members = True
 autosummary_generate_overwrite = True
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+# Don’t pick up checkpoint notebooks
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
 
 # Autodoc defaults
 autodoc_default_options = {
@@ -76,8 +77,9 @@ root_doc = "index"
 nbsphinx_allow_errors = True
 nbsphinx_execute = 'never'  # Don’t run notebooks on RTD
 
-# Recognize both .md and .rst
 source_suffix = {
     '.rst': 'restructuredtext',
-    '.md': 'markdown',
+    '.md':  'myst',
+    '.ipynb': 'nbsphinx',
 }
+exclude_patterns += ['**.ipynb_checkpoints']
