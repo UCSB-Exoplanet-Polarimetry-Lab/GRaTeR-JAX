@@ -49,7 +49,6 @@ autodoc_typehints = "none"
 
 # If heavy imports fail on RTD, mock them
 autodoc_mock_imports = [
-    "jax", "jaxlib", "jaxopt",
     "astropy", "photutils",
     "stpsf", "webbpsf_ext", "pysiaf", "poppy",
     "h5py", "xarray",
@@ -80,6 +79,5 @@ nbsphinx_execute = 'never'  # Don’t run notebooks on RTD
 source_suffix = {
     '.rst': 'restructuredtext',
     '.md':  'myst',
-    '.ipynb': 'nbsphinx',
 }
 exclude_patterns += ['**.ipynb_checkpoints']

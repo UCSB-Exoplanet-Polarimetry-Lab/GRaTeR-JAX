@@ -69,9 +69,7 @@ class ScatteredLightDisk(Jax_class):
     Notes
     -----
     The class stores its parameters in a packed array for JAX and provides
-    helpers to pack/unpack dictionaries. Rendering typically proceeds via
-    :meth:`compute_scattered_light_jax`, using a chosen density model and
-    scattering phase function.
+    helpers to pack/unpack dictionaries.
     """
 
     # Jax Parameters
