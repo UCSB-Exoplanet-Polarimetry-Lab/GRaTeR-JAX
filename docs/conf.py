@@ -19,6 +19,7 @@ extensions = [
     'nbsphinx',                 # Render Jupyter notebooks
     'sphinx_rtd_theme',         # Read the Docs theme
 ]
+autosummary_generate = True
 
 # MyST config (handy but minimal)
 myst_enable_extensions = [
@@ -52,6 +53,8 @@ autodoc_mock_imports = [
     "stpsf", "webbpsf_ext", "pysiaf", "poppy",
     "h5py", "xarray",
     "numpyro", "cupy",
+    # add these three ↓↓↓
+    "corner", "arviz", "emcee",
 ]
 
 # Napoleon tweaks

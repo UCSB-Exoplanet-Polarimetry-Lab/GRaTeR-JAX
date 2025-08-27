@@ -5,6 +5,8 @@ from scipy.optimize import minimize, check_grad
 from grater_jax.optimization.mcmc_model import MCMC_model
 from grater_jax.disk_model.objective_functions import objective_model, objective_ll, objective_fit, log_likelihood, objective_grad, objective_fit_grad
 import json
+import numpy as np
+from grater_jax.disk_model.SLD_utils import *
 
 # Built for new objective function
 class Optimizer:
