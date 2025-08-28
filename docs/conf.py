@@ -2,7 +2,6 @@
 import os
 import sys
 
-# Add the project root (one level up from docs/)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # -- Project information -----------------------------------------------------
@@ -66,15 +65,14 @@ napoleon_attr_annotations = True
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
-# Avoid warning if you don't have docs/_static
-html_static_path = []  # change to ['_static'] if you add that folder
+html_static_path = []
 
 # Root doc for Sphinx >= 5
 root_doc = "index"
 
 # -- nbsphinx options --------------------------------------------------------
 nbsphinx_allow_errors = True
-nbsphinx_execute = 'never'  # Don’t run notebooks on RTD
+nbsphinx_execute = 'never'
 
 source_suffix = {
     '.rst': 'restructuredtext',
