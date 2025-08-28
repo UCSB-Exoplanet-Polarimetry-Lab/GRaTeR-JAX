@@ -1,3 +1,24 @@
+"""
+SLD_utils.py
+============
+
+Utility classes for disk modeling.
+
+This module defines base JAX classes and implementations of density
+distributions, scattering phase functions, and point spread functions
+(PSFs) used in scattered-light disk forward modeling. It includes:
+
+- `Jax_class` : Base class for packing/unpacking parameter dictionaries.
+- `DustEllipticalDistribution2PowerLaws` : Two-power-law dust density model.
+- `HenyeyGreenstein_SPF`, `DoubleHenyeyGreenstein_SPF` : Scattering phase functions.
+- `InterpolatedUnivariateSpline_SPF` : Spline-based scattering phase function.
+- `GAUSSIAN_PSF`, `EMP_PSF`, `Winnie_PSF` : PSF models.
+- `LinearStellarPSF`, `PositionalStellarPSF` : Stellar PSF models using reference images.
+
+This can be added to in order to introduce new distribution functions, scattering phase
+functions, and point spread functions to the framework.
+"""
+
 import jax
 import jax.numpy as jnp
 from jax import vmap

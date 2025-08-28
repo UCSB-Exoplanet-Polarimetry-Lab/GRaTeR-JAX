@@ -1,4 +1,25 @@
-# Slight fixes to Jax_cosmo InterpolatedUnivariateSpline
+"""
+winnie_jwst_fm.py
+=================
+
+JWST PSF grid and convolution utilities.
+
+This module provides functions adapted from Kellen Lawson’s Winnie package for
+generating and applying JWST NIRCam coronagraphic PSFs. It includes routines
+for creating spatially varying PSF grids, convolving model images with PSFs,
+handling coronagraph masks, and performing image rotations/padding on CPU or
+GPU. GPU acceleration via CuPy is supported where available. This file is
+only used for its generate_nircam_grid function. This could be deprecated as
+more integrated support for Winnie could be developed.
+
+Main functions
+--------------
+- `generate_nircam_psf_grid` : Build a grid of NIRCam PSFs and index maps.
+- `convolve_with_spatial_psfs` : Apply spatially varying PSF convolution.
+- `rotate_hypercube`, `pad_and_rotate_hypercube` : Rotate image cubes.
+- `generate_jwst_mask_image` : Generate coronagraph mask transmission maps.
+- GPU-enabled helpers (`rotate_image_gpu`, `psf_convolve_gpu`, etc.).
+"""
 
 import functools
 
@@ -9,13 +30,10 @@ from webbpsf_ext import image_manip, coords
 from astropy.io import fits
 from joblib import Parallel, delayed
 
-webbpsf_ext.setup_logging('WARN')
-
 """
 This file provides utilities derived from Kellen Lawson's Winnie package.
 It is primarily used for `generate_nircam_psf_grid`.
 """
-
 
 def raw_model_to_convolved_model_cube(
     input_im,
