@@ -1,3 +1,15 @@
+"""
+jax_model_wrappers.py
+=============
+
+JAX-accelerated forward models for scattered-light disks.
+
+This module provides JIT-compiled functions to generate disk model images
+using different combinations of disk models, dust distributions, scattering
+phase functions, and PSF models. Each function is specialized for particular
+choices of PSF/scattering implementations (e.g., Winnie PSF or spline-based SPF).
+"""
+
 import jax
 import jax.numpy as jnp
 from functools import partial

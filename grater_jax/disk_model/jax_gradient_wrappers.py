@@ -1,3 +1,18 @@
+"""
+jax_gradient_wrappers.py
+========================
+
+Differentiable log-likelihood functions for disk modeling.
+
+This module defines JAX-compiled objective functions and their gradients for
+disk image generation and likelihood evaluation. It provides standard, Winnie
+PSF, and spline-based variants, along with convenience wrappers for computing
+per-pixel residuals and Gaussian log-likelihoods. These functions are meant
+to be differentiable versions of the methods in jax_model_wrappers.py, however,
+there is some overhead needed to match the parameters of the two, this is handled
+by objective_grad in objective_functions.py.
+"""
+
 import jax
 import jax.numpy as jnp
 

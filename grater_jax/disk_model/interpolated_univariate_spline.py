@@ -1,4 +1,15 @@
-# Slight fixes to Jax_cosmo InterpolatedUnivariateSpline
+"""
+interpolated_univariate_spline.py
+=================================
+
+JAX implementation of 1D spline interpolation.
+
+This module provides a JAX-compatible version of SciPy’s
+`InterpolatedUnivariateSpline` with support for linear, quadratic, and
+cubic splines. It includes evaluation, derivatives, antiderivatives,
+and definite integrals, while omitting unsupported options such as
+weights and smoothing.
+"""
 
 import functools
 

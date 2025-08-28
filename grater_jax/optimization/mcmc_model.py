@@ -1,3 +1,24 @@
+"""
+mcmc_model.py
+=============
+
+MCMC utilities for model fitting.
+
+This module defines the `MCMC_model` class, a wrapper around the `emcee`
+ensemble sampler with additional tools for running MCMC inference, analyzing
+posterior distributions, and visualizing results. It provides built-in support
+for HDF5 backends, custom priors, autocorrelation analysis, and plotting.
+
+Main features
+-------------
+- `MCMC_model.run` : Run burn-in and production MCMC chains with emcee.
+- `MCMC_model.get_theta_median`, `get_theta_percs`, `get_theta_max` :
+  Extract parameter estimates from posterior samples.
+- `MCMC_model.show_corner_plot` : Generate corner plots of posterior samples.
+- `MCMC_model.plot_chains` : Visualize walker chains for diagnostics.
+- `MCMC_model.auto_corr` : Estimate autocorrelation times.
+"""
+
 import numpy as np
 import emcee
 import corner
