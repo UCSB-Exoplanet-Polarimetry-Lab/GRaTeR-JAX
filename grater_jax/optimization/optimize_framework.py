@@ -1,3 +1,32 @@
+"""
+optimizer.py
+============
+
+High-level optimization interface for GRaTeR-JAX.
+
+This module defines the `Optimizer` class, a top-level wrapper for the GRaTeR-JAX
+framework that integrates disk morphology, scattering phase functions, PSFs, and
+stellar PSFs into a single object. It provides unified methods for generating
+disk models, computing likelihoods and gradients, and performing optimization
+with both deterministic (SciPy) and stochastic (MCMC) approaches.
+
+Main features
+-------------
+- `Optimizer.get_model` : Build a model image from current parameters.
+- `Optimizer.get_objective_likelihood`, `get_objective_gradient` :
+  Evaluate log-likelihood and its gradient.
+- `Optimizer.scipy_optimize`, `Optimizer.scipy_bounded_optimize` :
+  Run SciPy-based minimization with optional analytic gradients.
+- `Optimizer.mcmc` : Run emcee-based MCMC sampling for posterior inference.
+- `Optimizer.initialize_knots`, `scale_spline_to_fixed_point` :
+  Utilities for initializing and normalizing spline-based SPF models.
+- `Optimizer.save_human_readable`, `save_machine_readable`, `load_machine_readable` :
+  Save/load model parameters for reproducibility.
+- `OptimizeUtils` :
+  Helper utilities for empirical error maps, image preprocessing, and
+  post-processing MCMC chains.
+"""
+
 import jax
 import jax.numpy as jnp
 from grater_jax.disk_model.SLD_utils import *

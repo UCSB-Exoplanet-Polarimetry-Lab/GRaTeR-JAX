@@ -1,3 +1,16 @@
+"""
+winnie_class.py
+===============
+
+JAX wrapper for spatially-varying JWST PSF convolution.
+
+This module defines the `WinniePSF` class, a JAX-compatible implementation of
+the Winnie package (Lawson et al.) for PSF subtraction. It provides tools for
+constructing and applying spatially-varying PSFs across roll angles, including
+rotation, masking, and convolution. A helper function `jax_rotate_image` is also
+included for JAX-based image rotation.
+"""
+
 from functools import partial
 import numpy as np
 from grater_jax.disk_model.winnie_jwst_fm import generate_nircam_psf_grid
