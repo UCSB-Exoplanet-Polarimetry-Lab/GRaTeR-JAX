@@ -13,9 +13,11 @@ API Reference
    :undoc-members:
    :inherited-members:
    :show-inheritance:
+   :noindex:
 
 .. automodule:: grater_jax.optimization
    :members:
    :undoc-members:
    :inherited-members:
    :show-inheritance:
+   :noindex:

@@ -2,7 +2,6 @@
 import os
 import sys
 
-# Add the project root (one level up from docs/)
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # -- Project information -----------------------------------------------------
@@ -33,7 +32,8 @@ autosummary_imported_members = True
 autosummary_generate_overwrite = True
 
 templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+# Don’t pick up checkpoint notebooks
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
 
 # Autodoc defaults
 autodoc_default_options = {
@@ -48,12 +48,10 @@ autodoc_typehints = "none"
 
 # If heavy imports fail on RTD, mock them
 autodoc_mock_imports = [
-    "jax", "jaxlib", "jaxopt",
     "astropy", "photutils",
     "stpsf", "webbpsf_ext", "pysiaf", "poppy",
     "h5py", "xarray",
     "numpyro", "cupy",
-    # add these three ↓↓↓
     "corner", "arviz", "emcee",
 ]
 
@@ -67,18 +65,17 @@ napoleon_attr_annotations = True
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'sphinx_rtd_theme'
-# Avoid warning if you don't have docs/_static
-html_static_path = []  # change to ['_static'] if you add that folder
+html_static_path = []
 
 # Root doc for Sphinx >= 5
 root_doc = "index"
 
 # -- nbsphinx options --------------------------------------------------------
 nbsphinx_allow_errors = True
-nbsphinx_execute = 'never'  # Don’t run notebooks on RTD
+nbsphinx_execute = 'never'
 
-# Recognize both .md and .rst
 source_suffix = {
     '.rst': 'restructuredtext',
-    '.md': 'markdown',
+    '.md':  'myst',
 }
+exclude_patterns += ['**.ipynb_checkpoints']
