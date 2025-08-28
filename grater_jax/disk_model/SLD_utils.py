@@ -19,13 +19,22 @@ class Jax_class:
     @partial(jax.jit, static_argnums=(0,))
     def unpack_pars(cls, p_arr):
         """
-        This function takes a parameter array (params) and unpacks it into a
-        dictionary with the parameter names as keys.
+        Unpack a parameter array into a dictionary keyed by parameter names.
+
+        Parameters
+        ----------
+        p_arr : jax.numpy.ndarray or array-like
+            1D array of parameter values. The order must match the keys in
+            ``cls.params``.
+
+        Returns
+        -------
+        dict
+            Dictionary mapping parameter names (str) to their corresponding values.
         """
         p_dict = {}
         keys = list(cls.params.keys())
-        i = 0
-        for i in range(0, len(p_arr)):
+        for i in range(len(p_arr)):
             p_dict[keys[i]] = p_arr[i]
 
         return p_dict
@@ -34,9 +43,21 @@ class Jax_class:
     @partial(jax.jit, static_argnums=(0,))
     def pack_pars(cls, p_dict):
         """
-        This function takes a parameter dictionary and packs it into a JAX array
-        where the order is set by the parameter name list defined on the class.
-        """    
+        Pack a parameter dictionary into a JAX array.
+
+        The order of parameters in the array is determined by the key order in
+        ``cls.params``.
+
+        Parameters
+        ----------
+        p_dict : dict
+            Dictionary mapping parameter names (str) to values.
+
+        Returns
+        -------
+        jax.numpy.ndarray
+            1D array of parameter values in the order specified by ``cls.params``.
+        """
         p_arrs = []
         for name in cls.params.keys():
             p_arrs.append(p_dict[name])

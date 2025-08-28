@@ -8,61 +8,68 @@ from grater_jax.disk_model.SLD_utils import *
 
 class ScatteredLightDisk(Jax_class):
     """
-    Class used to generate a synthetic disc, inspired from a light version of
-    the GRATER tool (GRenoble RAdiative TransfER) written originally in IDL
-    [AUG99]_, and converted to Python by J. Milli.
+    Generate a synthetic scattered-light disk using a lightweight, JAX-accelerated
+    version of the GRaTeR approach.
+
+    This class provides utilities to construct surface-brightness images of inclined,
+    possibly eccentric debris/protoplanetary disks for forward modeling and fitting.
 
     Parameters
-        ----------
-        nx : int
-            number of pixels along the x axis of the image (default 200)
-        ny : int
-            number of pixels along the y axis of the image (default 200)
-        distance : float
-            distance to the star in pc (default 70.)
-        itilt : float
-            inclination wrt the line of sight in degrees (0 means pole-on,
-            90 means edge-on, default 60 degrees)
-        omega : float
-            argument of the pericenter in degrees (0 by default)
-        pxInArcsec : float
-            pixel field of view in arcsec/px (default the SPHERE pixel
-            scale 0.01225 arcsec/px)
-        pa : float
-            position angle of the disc in degrees; 
-            here, PA is defined as the angle starting at North (positive y-axis) and moving counter-clockwise
-            toward the projected major axis of the disk such that PA - 90 deg = the PA of the projected semiminor axis of the disk's
-            presumed front side, where front is chosen to be the brightest. This is offset by 180 degrees from conventions in Esposito+ 2020,
-            and is consistent with the convention used in the disk forward modeling functionality of VIP.
-        distr_params : dict
-            Parameters describing the dust density distribution function
-            to be implemented. By default, it uses a two-power law dust
-            distribution with a vertical gaussian distribution with
-            linear flaring. For a two-power law distribution, you can set it with the following parameters:
-                    accuracy : float
-                        Density limit as described above. Default is 5.e-3.
-                    alpha_in : float
-                        slope of the power-low distribution in the inner disk. It must be positive (default 5)
-                    alpha_out : float
-                        slope of the power-low distribution in the outer disk. It must be negative (default -5)
-                    sma : float
-                        reference radius in au (default 60)
-                    e : float
-                        eccentricity (default 0)
-                    ksi0 : float
-                        scale height in au at the reference radius (default 1 a.u.)
-                    gamma : float
-                        exponent (2=gaussian,1=exponential profile, default 2)
-                    beta : float
-                        flaring index (0=no flaring, 1=linear flaring, default 1)
-                    rmin : float
-                        minimum semi-major axis: the dust density is 0 below this value (default 0)
-        xdo : float
-            disk offset along the x-axis in the disk frame (=semi-major axis),
-            in a.u. (default 0)
-        ydo : float
-            disk offset along the y-axis in the disk frame (=semi-minor axis),
-            in a.u. (default 0)
+    ----------
+    nx : int, optional
+        Number of pixels along the x axis (default 200).
+    ny : int, optional
+        Number of pixels along the y axis (default 200).
+    distance : float, optional
+        Distance to the star in parsecs (default 70.0).
+    itilt : float
+        Inclination with respect to the line of sight in degrees
+        (0 = pole-on; 90 = edge-on).
+    omega : float, optional
+        Argument of pericenter in degrees (default 0).
+    pxInArcsec : float, optional
+        Pixel scale in arcsec/pixel (default 0.01225).
+    pa : float
+        Disk position angle in degrees.
+        PA is measured from North (positive y axis) increasing counter-clockwise
+        toward the projected major axis of the disk. With this convention,
+        ``PA - 90°`` equals the PA of the projected semi-minor axis on the
+        presumed *front* (brighter) side. This is offset by 180° from
+        Esposito et al. (2020) and matches the convention used in VIP’s
+        forward-modeling utilities.
+    distr_params : dict
+        Dictionary controlling the dust density distribution. See
+        **“distr_params keys”** below for expected fields.
+    xdo : float, optional
+        Disk offset along the x axis of the disk frame (AU; default 0).
+    ydo : float, optional
+        Disk offset along the y axis of the disk frame (AU; default 0).
+
+    distr_params keys
+    -----------------
+    accuracy : float, optional
+        Density cutoff used for truncation (default ``5e-3``).
+    alpha_in : float
+        Power-law slope of the *inner* disk (must be positive; default 5).
+    alpha_out : float
+        Power-law slope of the *outer* disk (must be negative; default -5).
+    sma : float
+        Reference radius in AU (default 60).
+    e : float, optional
+        Eccentricity (default 0).
+    ksi0 : float, optional
+        Scale height at the reference radius in AU (default 1).
+    gamma : float, optional
+        Vertical profile exponent (2 = Gaussian, 1 = exponential; default 2).
+    beta : float, optional
+        Flaring index (0 = none, 1 = linear; default 1).
+    rmin : float, optional
+        Minimum semi-major axis; density is zero below this value (default 0).
+
+    Notes
+    -----
+    The class stores its parameters in a packed array for JAX and provides
+    helpers to pack/unpack dictionaries.
     """
 
     # Jax Parameters
