@@ -33,6 +33,8 @@ from grater_jax.disk_model.winnie_class import WinniePSF
 import os
 
 class Jax_class:
+    """Base class for custom JAX-compatible objects that can be compressed into
+    and uncompressed from JAX arrays."""
 
     params = {}
 
@@ -86,8 +88,7 @@ class Jax_class:
 
 
 class DustEllipticalDistribution2PowerLaws(Jax_class):
-    """
-    """
+    """Two-power-law elliptical dust density distribution model."""
 
     params = {'alpha_in': 5., 'alpha_out': -5., 'sma': 60., 'e': 0., 'ksi0': 1.,'gamma': 2., 'beta': 1.,
                         'rmin': 0., 'dens_at_r0': 1., 'accuracy': 5.e-3, 'zmax': 0., "p": 0., "rmax": 0.,
@@ -367,7 +368,7 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
 class GAUSSIAN_PSF(Jax_class):
 
     """
-    Creates a Gaussian PSF model. The PSF is defined by the following parameters:
+    Gaussian PSF model. The PSF is defined by the following parameters:
 
     Parameters
     ----------
@@ -406,6 +407,8 @@ class GAUSSIAN_PSF(Jax_class):
     
 
 class EMP_PSF(Jax_class):
+    """Empirical point spread function (PSF) model."""
+
     params = {'scale_factor': 1.0, 'offset': 1.0}
 
     # Modify this to change the image the empirical psf uses
@@ -445,6 +448,8 @@ class StellarPSFReference:
     reference_images = jnp.zeros((10, 10))
 
 class LinearStellarPSF(Jax_class):
+    """Stellar PSF model as a linear combination of reference images."""
+
     params = {'stellar_weights': None}  # Linear weights for each of the reference images.
 
     @classmethod
@@ -471,6 +476,8 @@ class LinearStellarPSF(Jax_class):
         return resized
     
 class PositionalStellarPSF(Jax_class):
+    """Stellar PSF model with position-dependent reference image weights."""
+
     params = {'stellar_weights': None, 'stellar_xs': None, 'stellar_ys': None}
     # Stellar weights : Linear weights for each of the reference images
     # Stellar xs and Stellar ys : X and Y positions for each of the reference images
