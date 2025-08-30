@@ -1,3 +1,15 @@
+"""
+objective_functions.py
+=============
+
+Objective functions for disk modeling and optimization.
+
+This module provides functions that connect high-level optimization routines
+to the underlying JAX-accelerated disk model wrappers. It defines parameter
+templates, packing utilities, and objective functions for model evaluation,
+log-likelihood computation, and gradient calculation.
+"""
+
 import jax
 import jax.numpy as jnp
 import numpy as np

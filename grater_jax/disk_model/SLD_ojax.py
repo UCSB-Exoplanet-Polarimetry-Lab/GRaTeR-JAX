@@ -1,10 +1,20 @@
-#! /usr/bin/env python
+"""
+sld_class.py
+============
+
+Scattered-light disk model class.
+
+This module defines the `ScatteredLightDisk` class, a JAX-accelerated
+implementation of the GRaTeR framework for generating synthetic scattered-light
+disk images. It provides utilities for initializing disk parameters,
+packing/unpacking arrays for JAX, and computing forward-modeled scattered-light
+images for debris and protoplanetary disks.
+"""
 
 import jax
 import jax.numpy as jnp
 from functools import partial
 from grater_jax.disk_model.SLD_utils import *
-
 
 class ScatteredLightDisk(Jax_class):
     """
