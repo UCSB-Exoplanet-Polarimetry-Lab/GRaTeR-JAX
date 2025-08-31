@@ -39,6 +39,10 @@ def log_likelihood(image, target_image, err_map):
     sigma2 = jnp.power(err_map, 2)
     faulty_result = jnp.power((target_image - image), 2) / (sigma2+1e-40) + jnp.log(sigma2+1e-40)
     result = jnp.where(safe, faulty_result, 0.)
+
+    num_neg_pixels = jnp.sum(jnp.where(image < 0., -1., 0.))
+    result = jnp.where(num_neg_pixels < -0.5, 1e10, result)
+
     return -0.5 * jnp.sum(result)
 
 @jax.jit
