@@ -608,9 +608,9 @@ class Optimizer:
         """
         if(self.spf_params['num_knots'] <= 0):
             if(self.disk_params['sma'] < 50):
-                self.spf_params['num_knots'] = 4
+                self.spf_params['num_knots'] = 5
             else:
-                self.spf_params['num_knots'] = 6
+                self.spf_params['num_knots'] = 7
         self.spf_params['forwardscatt_bound'] = jnp.cos(jnp.deg2rad(90-self.disk_params['inclination']-buffer))
         self.spf_params['backscatt_bound'] = jnp.cos(jnp.deg2rad(90+self.disk_params['inclination']+buffer))
         return self.spf_params
@@ -709,6 +709,23 @@ class Optimizer:
         print("PSF Params: " + str(self.psf_params))
         print("Stellar PSF Params: " + str(self.stellar_psf_params))
         print("Misc Params: " + str(self.misc_params))
+
+    def plot_spline(self, num_points=100):
+        fig, ax = plt.subplots()
+
+        x = np.linspace(-1, 1, num_points)
+        knots = InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)
+        spline = InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], knots)
+
+        y = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, x)
+        y_knots = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, knots)
+
+        ax.set_title("Spline Fit")
+        ax.plot(x, y, label="Spline curve")
+        ax.scatter(knots, y_knots, color="red", label="Knots")
+        ax.legend()
+
+        return fig
 
     def get_flux_scale(self):
         """
