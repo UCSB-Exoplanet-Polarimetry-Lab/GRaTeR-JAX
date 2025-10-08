@@ -31,7 +31,7 @@ try:
     from webbpsf_ext import image_manip, coords
     from astropy.io import fits
     from joblib import Parallel, delayed
-except Exception as e:
+except ImportError:
     webbpsf_ext = None
 
 """

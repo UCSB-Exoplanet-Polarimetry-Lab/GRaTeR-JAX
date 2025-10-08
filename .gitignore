@@ -11,3 +11,4 @@ docs/tutorials/cdbs/
 docs/tutorials/PSFs/
 docs/tutorials/test_emcee_backend.h5
 docs/api/generated/
+tests/test_images

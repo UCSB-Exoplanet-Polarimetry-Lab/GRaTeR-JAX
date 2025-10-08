@@ -1072,10 +1072,10 @@ class Optimizer:
         # Precompute index maps for efficiency
         disk_idx_map = {k: i for i, k in enumerate(self.disk_params)}
         spf_idx_map = {k: i for i, k in enumerate(self.spf_params)}
-        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)} if (self.PSFModel != Winnie_PSF and self.PSFModel != None) else {}
+        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)} if self.PSFModel != Winnie_PSF else {}
         
         use_interpolated_spf = issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF)
-        use_winnie_psf = self.PSFModel != None and issubclass(self.PSFModel, Winnie_PSF)
+        use_winnie_psf = issubclass(self.PSFModel, Winnie_PSF)
 
         if self.StellarPSFModel is not None:
             stellar_grad_dict = self.StellarPSFModel.unpack_pars(grad_stellar)
@@ -1129,10 +1129,10 @@ class Optimizer:
         # Precompute lookup tables
         disk_idx_map = {k: i for i, k in enumerate(self.disk_params)}
         spf_idx_map = {k: i for i, k in enumerate(self.spf_params)}
-        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)} if (self.PSFModel != Winnie_PSF and self.PSFModel != None) else {}
+        psf_idx_map = {k: i for i, k in enumerate(self.psf_params)} if self.PSFModel != Winnie_PSF else {}
 
         use_interpolated_spf = issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF)
-        use_winnie_psf = self.PSFModel != None and issubclass(self.PSFModel, Winnie_PSF)
+        use_winnie_psf = issubclass(self.PSFModel, Winnie_PSF)
 
         if self.StellarPSFModel is not None:
             stellar_grad_dict = self.StellarPSFModel.unpack_pars(grad_stellar)
