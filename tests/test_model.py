@@ -3,13 +3,18 @@ import numpy as np
 from vip_hci.fm.scattered_light_disk import ScatteredLightDisk as VIP_ScatteredLightDisk
 from vip_hci.var.filters import frame_filter_lowpass  # <-- VIP gaussian PSF
 from grater_jax.disk_model.objective_functions import objective_model, Parameter_Index
-from grater_jax.disk_model.SLD_utils import DustEllipticalDistribution2PowerLaws, HenyeyGreenstein_SPF
+from grater_jax.disk_model.SLD_utils import DustEllipticalDistribution2PowerLaws, HenyeyGreenstein_SPF, GAUSSIAN_PSF
 from grater_jax.disk_model.SLD_ojax import ScatteredLightDisk as JAX_ScatteredLightDisk
 import matplotlib.pyplot as plt
+import jax
+import os
+
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.60'
+jax.config.update("jax_enable_x64", True)
 
 
 def test_simple_vip_and_grater_jax_generate_images():
-    # --- VIP disk ---
+    # VIP disk
     density = {
         "name": "2PowerLaws",
         "a": 60.0,
@@ -81,11 +86,11 @@ def test_simple_vip_and_grater_jax_generate_images():
 
     assert jax_img.shape == (200, 200)
 
-    # --- Basic sanity comparison ---
+    # Basic sanity comparison
     assert np.isfinite(vip_img).any()
     assert np.isfinite(jax_img).any()
 
-    # --- Residual calculation ---
+    # Residual
     residual = vip_img - jax_img
 
     # Assert residual is negligible (tolerance can be tuned)
@@ -99,7 +104,7 @@ def test_simple_vip_and_grater_jax_generate_images():
     assert max_resid < 1e-6, f"Residual too large: {max_resid}"
     assert mean_resid < 1e-7, f"Mean residual too large: {mean_resid}"
 
-    # --- Multi-plot figure ---
+    # VIP vs GRaTeR-JAX vs Residuals
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
     # Compute global limits
@@ -129,7 +134,7 @@ def test_simple_vip_and_grater_jax_generate_images():
     # For residual, use symmetric around 0
     res_limit = np.max(np.abs(residual))
 
-    # --- Plot with shared limits ---
+    # Plotting on same scale
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
     im0 = axes[0].imshow(vip_img, cmap="inferno", vmin=vmin, vmax=vmax)
@@ -150,7 +155,7 @@ def test_simple_vip_and_grater_jax_generate_images():
 
 
 def test_gaussian_psf_vip_and_grater_jax_generate_images():
-    # --- VIP disk (raw) ---
+    # VIP disk
     density = {
         "name": "2PowerLaws",
         "a": 60.0,
@@ -179,16 +184,19 @@ def test_gaussian_psf_vip_and_grater_jax_generate_images():
     assert isinstance(vip_img_raw, np.ndarray)
     assert vip_img_raw.shape == (200, 200)
 
-    # --- Apply Gaussian PSF in VIP (FWHM in pixels) ---
+    # VIP Disk + Gaussian PSF
     fwhm_px = 5.0
     vip_img = frame_filter_lowpass(
         vip_img_raw, mode="gauss", fwhm_size=fwhm_px, conv_mode="convfft"
     )
     assert vip_img.shape == (200, 200)
 
-    # --- GRaTeR-JAX disk (no PSF yet) ---
+    # GRaTeR-JAX disk w/ PSF
     spf_params = HenyeyGreenstein_SPF.params.copy()
     spf_params["g"] = 0.3
+
+    psf_params = GAUSSIAN_PSF.params.copy()
+    psf_params.update({'FWHM': fwhm_px, 'xo': 0., 'yo': 0., 'theta': 0., 'offset': 0., 'amplitude': 1.})
 
     disk_params = Parameter_Index.disk_params.copy()
     misc_params = Parameter_Index.misc_params.copy()
@@ -220,25 +228,25 @@ def test_gaussian_psf_vip_and_grater_jax_generate_images():
     })
 
     jax_img = objective_model(
-        disk_params, spf_params, None, misc_params,
+        disk_params, spf_params, psf_params, misc_params,
         JAX_ScatteredLightDisk, DustEllipticalDistribution2PowerLaws,
-        HenyeyGreenstein_SPF, None
+        HenyeyGreenstein_SPF, GAUSSIAN_PSF
     )
 
     assert jax_img.shape == (200, 200)
 
-    # --- Sanity checks ---
+    # Sanity checks
     assert np.isfinite(vip_img).any()
     assert np.isfinite(jax_img).any()
 
-    # --- Residual (VIP PSF vs JAX no-PSF) ---
+    # Residual (VIP PSF vs JAX no-PSF)
     residual = vip_img - jax_img
     print("Residual stats (PSF VIP vs raw JAX):",
           "min=", residual.min(), "max=", residual.max(), "mean|.|=", np.mean(np.abs(residual)))
 
     assert np.float64(np.mean(residual)) < np.finfo(np.float64).eps
 
-    # --- Plot with shared scale for VIP & JAX; residual uses same scale as VIP/JAX per your request ---
+    # Plot with shared scale for VIP & JAX
     vmin = min(vip_img.min(), jax_img.min())
     vmax = max(vip_img.max(), jax_img.max())
 
@@ -252,7 +260,7 @@ def test_gaussian_psf_vip_and_grater_jax_generate_images():
     axes[1].set_title("GRaTeR-JAX (no PSF)")
     fig.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
 
-    # Residual shown on the same 'inferno' scale to compare brightness directly
+    # Residual plot
     im2 = axes[2].imshow(residual, cmap="inferno", vmin=vmin, vmax=vmax)
     axes[2].set_title("Residual (VIP-PSF minus JAX)")
     fig.colorbar(im2, ax=axes[2], fraction=0.046, pad=0.04)

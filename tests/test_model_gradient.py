@@ -19,7 +19,10 @@ from grater_jax.disk_model.SLD_utils import (
     LinearStellarPSF,
 )
 from grater_jax.disk_model.objective_functions import Parameter_Index
+import os
 
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.10'
+jax.config.update("jax_enable_x64", True)
 
 def load_empirical_psf():
     """Load and crop the empirical PSF (GPI H-band), normalize to sum=1."""
@@ -30,11 +33,9 @@ def load_empirical_psf():
 
 
 def test_empirical_psf_hd115600_gradient():
-    """Compare analytic and numeric gradients using the real HD115600 dataset."""
+    """Compare analytic and numeric gradients."""
 
-    # -------------------------------------------------------------------------
-    # 1. Load target FITS images (science + error)
-    # -------------------------------------------------------------------------
+    # Load target FITS images (science + error)
     fits_image_filepath = "test_images/hd115600_H_pol.fits"
     hdul = fits.open(fits_image_filepath)
     target_image = OptimizeUtils.process_image(
@@ -45,14 +46,10 @@ def test_empirical_psf_hd115600_gradient():
         bounds=(40, 240, 40, 240),
     )
 
-    # -------------------------------------------------------------------------
-    # 2. Load empirical PSF
-    # -------------------------------------------------------------------------
+    # Loading empirical PSF
     emp_psf_image = load_empirical_psf()
 
-    # -------------------------------------------------------------------------
-    # 3. Define system parameters
-    # -------------------------------------------------------------------------
+    # Defining parameters
     row = {
         "Name": "hd115600_H_pol",
         "Radius": 46.0,
@@ -87,9 +84,7 @@ def test_empirical_psf_hd115600_gradient():
         }
     )
 
-    # -------------------------------------------------------------------------
-    # 4. Initialize optimizer with spline SPF + empirical PSF
-    # -------------------------------------------------------------------------
+    # Initialize optimizer with spline SPF + empirical PSF
     opt = Optimizer(
         ScatteredLightDisk,
         DustEllipticalDistribution2PowerLaws,
@@ -108,15 +103,9 @@ def test_empirical_psf_hd115600_gradient():
     opt.jit_compile_model()
     opt.jit_compile_gradient(target_image, err_map)
 
-    # -------------------------------------------------------------------------
-    # 5. Compute analytic gradient
-    # -------------------------------------------------------------------------
     fit_keys = ["sma", "alpha_in"]
     analytic_grad = opt.get_objective_gradient([46.0, 5.0], fit_keys, target_image, err_map)
 
-    # -------------------------------------------------------------------------
-    # 6. Compute numeric finite-difference gradient
-    # -------------------------------------------------------------------------
     eps = 1e-3
     numeric_grad = np.zeros_like(analytic_grad)
 
@@ -132,18 +121,11 @@ def test_empirical_psf_hd115600_gradient():
         ll_down = opt.get_objective_likelihood(params_down, fit_keys, target_image, err_map)
         numeric_grad[i] = (ll_up - ll_down) / (2 * eps)
 
-    # -------------------------------------------------------------------------
-    # 7. Print comparison
-    # -------------------------------------------------------------------------
     print("\nGradient Comparison (HD115600 + Empirical PSF):")
     for k, a, n in zip(fit_keys, analytic_grad, numeric_grad):
         diff = abs(a - n)
         rel_err = diff / (abs(n) + 1e-12)
         print(f"{k:12s} | analytic={a:+.6e}  numeric={n:+.6e}  diff={diff:.3e}  rel_err={rel_err:.3e}")
-
-    # -------------------------------------------------------------------------
-    # 8. Assertions
-    # -------------------------------------------------------------------------
 
     # Check gradients are finite and consistent
     assert np.all(np.isfinite(analytic_grad)), "Analytic gradient has NaNs/Infs"

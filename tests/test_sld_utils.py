@@ -5,6 +5,10 @@ import numpy as np
 import pytest
 import jax.scipy.signal as jss
 import matplotlib.pyplot as plt
+import os
+
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.10'
+jax.config.update("jax_enable_x64", True)
 
 from grater_jax.disk_model.SLD_utils import (
     Jax_class,
@@ -17,9 +21,7 @@ from grater_jax.disk_model.SLD_utils import (
     StellarPSFReference,
 )
 
-# -------------------------
-# Reference ("mock") implementations
-# -------------------------
+# Function mocks
 
 def ref_hg(cos_phi, g):
     """Closed-form single Henyey–Greenstein phase function."""
@@ -69,9 +71,7 @@ def ref_gaussian_convolution(image, FWHM, xo, yo, theta, offset, amplitude):
     ker = ref_gaussian_kernel(image.shape[1], image.shape[0], FWHM, xo, yo, theta, offset, amplitude)
     return jss.convolve2d(image, ker, mode="same")
 
-# -------------------------
 # Helpers
-# -------------------------
 
 def _trapz_1d(y, x):
     """Pure-jnp trapezoid rule: sum 0.5*(y[i]+y[i-1]) * (x[i]-x[i-1])."""
@@ -86,9 +86,7 @@ def make_impulse(h, w, yx):
     img = jnp.zeros((h, w))
     return img.at[yx[0], yx[1]].set(1.0)
 
-# -------------------------
 # Jax_class
-# -------------------------
 
 def test_pack_unpack_roundtrip_and_order():
     class Dummy(Jax_class):
@@ -104,9 +102,7 @@ def test_pack_unpack_roundtrip_and_order():
     # Must come back in the class's declared order ("b", then "a")
     assert jnp.allclose(arr2, jnp.array([3.0, 4.0]))
 
-# -------------------------
 # DustEllipticalDistribution2PowerLaws
-# -------------------------
 
 def test_density_matches_reference_selected_points():
     pars = DustEllipticalDistribution2PowerLaws.init(
@@ -137,9 +133,7 @@ def test_density_decreases_away_from_midplane():
     assert jnp.all(rhos[:-1] >= rhos[1:])
     assert rhos[0] > rhos[-1]
 
-# -------------------------
 # Henyey-Greenstein SPF
-# -------------------------
 
 def test_hg_matches_reference_function():
     g = 0.5
@@ -167,9 +161,7 @@ def test_hg_forward_vs_backward_scattering(g, expect_forward_higher):
     else:
         assert back > fwd
 
-# -------------------------
 # Double Henyey-Greenstein SPF
-# -------------------------
 
 def test_double_hg_matches_reference_function():
     g1, g2, w = 0.5, -0.3, 0.7
@@ -195,9 +187,7 @@ def test_double_hg_reduces_to_single_when_weight_1():
     vals_single = HenyeyGreenstein_SPF.compute_phase_function_from_cosphi(pars_single, cos_grid)
     assert jnp.allclose(vals_double, vals_single, rtol=1e-6, atol=1e-8)
 
-# -------------------------
 # Gaussian PSF
-# -------------------------
 
 def _gaussian_psf_generate(image, FWHM=2.0, xo=0.0, yo=0.0, theta=0.0, offset=0.0, amplitude=1.0):
     psf_pars = GAUSSIAN_PSF.pack_pars(

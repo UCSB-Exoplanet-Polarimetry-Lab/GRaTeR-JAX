@@ -11,10 +11,15 @@ from grater_jax.disk_model.SLD_utils import (
     HenyeyGreenstein_SPF,
 )
 from grater_jax.disk_model.objective_functions import Parameter_Index
+import jax
+import os
+
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.10'
+jax.config.update("jax_enable_x64", True)
 
 
 def test_optimizer_generate_model_and_likelihood():
-    # --- 1. VIP baseline model ---
+    # VIP baseline model
     density = {
         "name": "2PowerLaws",
         "a": 60.0,
@@ -49,7 +54,7 @@ def test_optimizer_generate_model_and_likelihood():
         vip_img, mode="gauss", fwhm_size=4.0, conv_mode="convfft"
     )
 
-    # --- 2. Define Optimizer inputs ---
+    # Define Optimizer inputs
     spf_params = HenyeyGreenstein_SPF.params.copy()
     spf_params["g"] = 0.3
 
@@ -100,18 +105,18 @@ def test_optimizer_generate_model_and_likelihood():
         misc_params=misc_params,
     )
 
-    # --- 4. Generate JAX model ---
+    # Generate JAX model
     jax_img = optimizer.get_model()
     assert jax_img.shape == (200, 200)
     assert np.isfinite(jax_img).any()
 
-    # --- 5. Compute likelihood ---
+    # Compute likelihood
     err_map = np.ones_like(vip_img_psf) * np.nanstd(vip_img_psf)
     ll = optimizer.log_likelihood(vip_img_psf, err_map)
     assert np.isfinite(ll)
     print("Log-likelihood:", ll)
 
-    # --- 6. Compare residuals ---
+    # Compare residuals
     residual = vip_img_psf - jax_img
     mean_resid = np.mean(np.abs(residual))
     max_resid = np.max(np.abs(residual))
@@ -121,7 +126,7 @@ def test_optimizer_generate_model_and_likelihood():
     assert mean_resid < 1e-6
     assert max_resid < 1e-5
 
-    # --- 7. Visualization ---
+    # Visualization
     vmin = min(vip_img_psf.min(), jax_img.min())
     vmax = max(vip_img_psf.max(), jax_img.max())
 
