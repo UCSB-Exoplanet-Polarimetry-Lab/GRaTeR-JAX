@@ -29,17 +29,16 @@ dependencies = [
     "poppy",
     "stsynphot",
     "synphot",
-    "webbpsf-ext",
     "pysiaf",
     "xarray",
     "arviz",
+    "corner",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
-    "black",
-    "mypy",
+    "vip_hci",
 ]
 docs = [
     "sphinx==8.2.3",
