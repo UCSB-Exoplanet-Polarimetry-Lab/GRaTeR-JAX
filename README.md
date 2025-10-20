@@ -18,7 +18,9 @@ To install GRaTeR-JAX and its dependencies, run:
 ```sh
 git clone https://github.com/UCSB-Exoplanet-Polarimetry-Lab/GRaTeR-JAX.git
 cd GRaTeR-JAX
-conda env create -f environment.yml
+pip install -e .
+
+pip install -U <jax backend> ("jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html for cuda for example)
 ```
 
 Make sure you have JAX installed with the correct backend for your hardware:

@@ -18,4 +18,7 @@ grater_jax_env.egg-info/SOURCES.txt
 grater_jax_env.egg-info/dependency_links.txt
 grater_jax_env.egg-info/requires.txt
 grater_jax_env.egg-info/top_level.txt
-tests/test_utils.py
+tests/test_model.py
+tests/test_model_gradient.py
+tests/test_optimizer.py
+tests/test_sld_utils.py

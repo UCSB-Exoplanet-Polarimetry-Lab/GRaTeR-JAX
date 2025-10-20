@@ -16,13 +16,11 @@ from grater_jax.disk_model.SLD_utils import (
     DustEllipticalDistribution2PowerLaws,
     InterpolatedUnivariateSpline_SPF,
     EMP_PSF,
-    LinearStellarPSF,
 )
 from grater_jax.disk_model.objective_functions import Parameter_Index
 import os
 
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.10'
-jax.config.update("jax_enable_x64", True)
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '0.60'
 
 def load_empirical_psf():
     """Load and crop the empirical PSF (GPI H-band), normalize to sum=1."""
