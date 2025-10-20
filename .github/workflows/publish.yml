@@ -1,13 +1,17 @@
-name: Build package
+name: Publish to PyPI
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
+    environment: pypi
 
     steps:
       - name: Checkout code
@@ -26,7 +30,5 @@ jobs:
       - name: Build package
         run: python -m build
 
-      - name: Verify built files
-        run: |
-          echo "Generated distribution files:"
-          ls -lh dist/
+      - name: Publish to PyPI via trusted publisher
+        uses: pypa/gh-action-pypi-publish@release/v1
