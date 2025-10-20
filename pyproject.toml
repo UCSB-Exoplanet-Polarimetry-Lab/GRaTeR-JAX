@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "grater-jax-env"
+name = "grater-jax"
 version = "0.1.0"
 description = "JAX-powered machine learning and modeling framework for GRaTeR disks."
 authors = [
