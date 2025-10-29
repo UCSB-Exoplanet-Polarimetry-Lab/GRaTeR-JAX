@@ -87,7 +87,7 @@ def test_optimizer_generate_model_and_likelihood():
             "nx": 200,
             "ny": 200,
             "halfNbSlices": 25,
-            "flux_scaling": 1e6,
+            "flux_scaling": 1,
         }
     )
 

@@ -103,7 +103,7 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
-    scattered_light_image*flux_scaling
+    scattered_light_image = scattered_light_image*flux_scaling
 
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
@@ -196,7 +196,7 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
 
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
 
-    scattered_light_image*flux_scaling
+    scattered_light_image = scattered_light_image*flux_scaling
 
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)

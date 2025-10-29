@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "grater-jax"
-version = "0.1.1"
+version = "0.2.0"
 description = "JAX-powered machine learning and modeling framework for GRaTeR disks."
 authors = [
     { name = "Mihir Kondapalli", email = "mihir.kondapalli@gmail.com" },
@@ -13,56 +13,59 @@ authors = [
 license = { text = "MIT" }
 readme = "README.md"
 
-requires-python = ">=3.9,<3.10"
+requires-python = ">=3.9,<3.13"
 
 dependencies = [
     # --- Core numerical and visualization libraries ---
-    "numpy>=1.23,<1.25",          # 1.24.x stable for JAX on Python 3.9
-    "scipy>=1.10,<1.12",          # last versions with 3.9 wheels
-    "matplotlib>=3.7,<3.8",
-    "pandas>=1.5,<2.0",
+    "numpy>=1.23",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "pandas>=1.5",
 
     # --- Astronomy and photometry tools ---
-    "astropy>=5.3,<6.0",          # 6.x requires >=3.10
-    "astroquery>=0.4,<0.5",
-    "poppy>=1.0,<1.1",            # 1.1.1+ drops 3.9 support
-    "stsynphot>=1.3,<2.0",
-    "synphot>=1.3,<1.4",          # 1.4+ requires Python >=3.10
-    "pysiaf>=0.21,<0.23",
+    "astropy>=5.3",
+    "astroquery>=0.4",
+    "poppy>=1.0",
+    "stsynphot>=1.3",
+    "synphot>=1.3",
+    "pysiaf>=0.21",
 
     # --- Statistical inference and analysis ---
-    "emcee>=2.2,<4.0",
-    "arviz>=0.15,<0.16",          # 0.16+ needs >=3.10
-    "corner>=2.2,<3.0",
-    "xarray>=2023.1,<2024.0",
+    "emcee>=3.1",
+    "arviz>=0.15",
+    "corner>=2.2",
+    "xarray>=2023.1",
 
-    # --- JAX ecosystem (pinned for gradient stability) ---
-    "jax>=0.4.23,<0.5.0",
-    "jaxlib>=0.4.23,<0.5.0",
-    "jaxopt>=0.8,<0.9"
+    # --- JAX ecosystem (GPU-compatible, pinned) ---
+    "jax<=0.4.34",
+    "jaxlib<=0.4.34",
+    "jaxopt>=0.8,<0.9",
+
+    # --- Progress bars and utilities ---
+    "tqdm>=4.65"
 ]
 
 [project.optional-dependencies]
-# Development dependencies (testing, benchmarking)
+# Development dependencies
 dev = [
-    "pytest>=7.0,<8.0",
-    "vip_hci>=1.3,<1.7",
+    "pytest>=7.0",
+    "vip_hci>=1.3",
 ]
 
-# Documentation build stack (Sphinx)
+# Documentation build stack
 docs = [
-    "sphinx==7.2.6",              # 8.x requires Python >=3.10
-    "sphinx-rtd-theme>=1.3,<2.0",
-    "myst-parser>=2.0,<3.0",
-    "nbsphinx>=0.9,<1.0",
-    "photutils>=1.8,<2.0"         # last version with 3.9 wheels
+    "sphinx>=7.2",
+    "sphinx-rtd-theme>=1.3",
+    "myst-parser>=2.0",
+    "nbsphinx>=0.9",
+    "photutils>=1.8"
 ]
 
 # Optional JWST PSF extensions
 webbpsf = [
-    "webbpsf>=1.0,<1.1",
-    "webbpsf_ext>=1.0,<1.2",
-    "poppy>=1.0,<1.1"
+    "webbpsf>=1.0",
+    "webbpsf_ext>=1.0",
+    "poppy>=1.0"
 ]
 
 [tool.setuptools.packages.find]

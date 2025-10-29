@@ -23,11 +23,11 @@ def log_likelihood(image, target_image, err_map):
 
     Parameters
     ----------
-    image : np.ndarray
+    image : jnp.ndarray
         Model image of shape (H, W).
-    target_image : np.ndarray
+    target_image : jnp.ndarray
         Observed image of the same shape as `image`.
-    err_map : np.ndarray
+    err_map : jnp.ndarray
         Per-pixel standard deviation (noise map); same shape as `image`.
 
     Returns
@@ -35,15 +35,10 @@ def log_likelihood(image, target_image, err_map):
     float
         The total log-likelihood assuming independent Gaussian errors.
     """
-    safe = jnp.greater(err_map, 0)
-    sigma2 = jnp.power(err_map, 2)
-    faulty_result = jnp.power((target_image - image), 2) / (sigma2+1e-40) + jnp.log(sigma2+1e-40)
-    result = jnp.where(safe, faulty_result, 0.)
+    sigma2 = jnp.square(err_map)
+    result = ((target_image - image) ** 2) / (sigma2 + 1e-40) + jnp.log(sigma2 + 1e-40)
+    return -0.5 * jnp.mean(result)
 
-    num_neg_pixels = jnp.sum(jnp.where(image < 0., -1., 0.))
-    result = jnp.where(num_neg_pixels < -0.5, 1e10, result)
-
-    return -0.5 * jnp.sum(result)
 
 @jax.jit
 def residuals(image, target_image, err_map):
@@ -64,10 +59,8 @@ def residuals(image, target_image, err_map):
     jnp.ndarray
         Residual map of the same shape as `image`.
     """
-    safe = jnp.greater(err_map, 0)
-    sigma2 = jnp.power(err_map, 2)
-    faulty_result = jnp.power((target_image - image), 2) / (sigma2+1e-40) + jnp.log(sigma2+1e-40)
-    result = jnp.where(safe, faulty_result, 0.)
+    sigma2 = jnp.square(err_map)
+    result = ((target_image - image) ** 2) / (sigma2 + 1e-40) + jnp.log(sigma2 + 1e-40)
     return result
 
 def jax_model_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
