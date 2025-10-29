@@ -37,11 +37,11 @@ def test_empirical_psf_hd115600_gradient():
     fits_image_filepath = "test_images/hd115600_H_pol.fits"
     hdul = fits.open(fits_image_filepath)
     target_image = OptimizeUtils.process_image(
-        hdul["SCI"].data[1, :, :], bounds=(40, 240, 40, 240)
+        hdul["SCI"].data[1, :, :], bounds=(70, 210, 70, 210)
     )
     err_map = OptimizeUtils.process_image(
         OptimizeUtils.create_empirical_err_map(hdul["SCI"].data[2, :, :]),
-        bounds=(40, 240, 40, 240),
+        bounds=(70, 210, 70, 210),
     )
 
     # Loading empirical PSF
@@ -67,8 +67,8 @@ def test_empirical_psf_hd115600_gradient():
             "sma": row["Radius"],
             "inclination": row["Inclination"],
             "position_angle": row["Position Angle"],
-            "x_center": 100.0,
-            "y_center": 100.0,
+            "x_center": 70.0,
+            "y_center": 70.0,
             "flux_scaling": 1.0,
         }
     )
@@ -78,8 +78,8 @@ def test_empirical_psf_hd115600_gradient():
     start_misc_params.update(
         {
             "distance": row["Distance"],
-            "nx": 200,
-            "ny": 200,
+            "nx": 140,
+            "ny": 140,
         }
     )
 
