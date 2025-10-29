@@ -631,8 +631,8 @@ class Optimizer:
         """
         ## Get a good scaling
         y, x = np.indices(target_image.shape)
-        y -= 70
-        x -= 70 
+        y -= self.misc_params['ny']//2
+        x -= self.misc_params['nx']//2 
         rads = np.sqrt(x**2+y**2)
         mask = (rads > 12)
 

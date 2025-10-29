@@ -72,7 +72,7 @@ def test_simple_vip_and_grater_jax_generate_images():
         "nx": 200,                  # nx
         "ny": 200,                  # ny
         "halfNbSlices": 25,         # consistency with disk_params
-        "flux_scaling": 1e6,        # keep default
+        "flux_scaling": 1,          # keep default
     })
 
     print(misc_params['nx'])

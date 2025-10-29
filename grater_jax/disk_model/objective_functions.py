@@ -341,6 +341,13 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             temp_misc_params[key] = params_fit[param_index]
         param_index += 1
 
+    if issubclass(FuncModel, InterpolatedUnivariateSpline_SPF):
+        phase_fn = InterpolatedUnivariateSpline_SPF.pack_pars(
+            temp_spf_params["knot_values"], knots=InterpolatedUnivariateSpline_SPF.get_knots(temp_spf_params)
+        )
+        if jnp.any(phase_fn(jnp.linspace(-1, 1, 200)) < 0):
+            return -1e10
+
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
         model_image = jax_model(
             DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
@@ -363,7 +370,6 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             flux_scaling=misc_params['flux_scaling']
         )
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
-
         model_image = jax_model_spline(
             DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,

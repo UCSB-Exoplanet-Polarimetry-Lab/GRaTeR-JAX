@@ -69,6 +69,7 @@ def test_empirical_psf_hd115600_gradient():
             "position_angle": row["Position Angle"],
             "x_center": 100.0,
             "y_center": 100.0,
+            "flux_scaling": 1.0,
         }
     )
 
