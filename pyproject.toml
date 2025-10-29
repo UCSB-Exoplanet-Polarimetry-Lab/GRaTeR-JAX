@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "grater-jax"
-version = "0.2.0"
+version = "0.2.1"
 description = "JAX-powered machine learning and modeling framework for GRaTeR disks."
 authors = [
     { name = "Mihir Kondapalli", email = "mihir.kondapalli@gmail.com" },
