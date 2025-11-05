@@ -459,18 +459,10 @@ Return format: (jnp.array, jnp.array, jnp.array, jnp.array)
 For disk_params, spf_params, psf_params, and stellar_psf_params each flattened in the same order as their corresponding dictionaries
 """
 
-jax_model_grad = jax.jit(jax.grad(jax_model_ll, argnums=(5, 6, 7, 8)),
-                                static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
+jax_model_grad = jax.grad(jax_model_ll, argnums=(5, 6, 7, 8))
 
-jax_model_winnie_grad = jax.jit(jax.grad(jax_model_winnie_ll, argnums=(5, 6, 8)),
-                                static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
+jax_model_winnie_grad = jax.grad(jax_model_winnie_ll, argnums=(5, 6, 8))
 
-jax_model_spline_grad = jax.jit(jax.grad(jax_model_spline_ll, argnums=(5, 6, 7, 8)),
-                                static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
+jax_model_spline_grad = jax.grad(jax_model_spline_ll, argnums=(5, 6, 7, 8))
 
-jax_model_spline_winnie_grad = jax.jit(jax.grad(jax_model_spline_winnie_ll, argnums=(5, 6, 8)),
-                                static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
+jax_model_spline_winnie_grad = jax.grad(jax_model_spline_winnie_ll, argnums=(5, 6, 8))
