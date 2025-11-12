@@ -39,14 +39,13 @@ Check out [GRaTeR Image Generator](https://scattered-light-disks.vercel.app) to 
 
 ```
 GRaTeR-JAX/
-│── disk_model/            # Code for disk modeling
-│── optimization/          # Tools for statistical optimization and analysis
-|── tutorials/             # Tutorial Jupyter notebooks
-│── webbpsf-data           # PSF data for various instruments
-│── PSFs/                  # PSF data for the disk model
-│── environment.yml        # Dependencies
-│── requirements.txt       # Pip dependencies
-│── README.md              # This document
+│── grater-jax/       # Package root for grater-jax
+   │── disk_model/    # Code for disk modeling
+   │── optimization/  # Tools for statistical optimization and analysis
+|── docs/             # Documenation and tutorial notebooks
+│── environment.yml   # Dependencies
+│── pyproject.toml    # Installation file
+│── README.md
 ```
 
 ## Contributing
@@ -63,6 +62,6 @@ We welcome contributions! To contribute:
 
 ## Acknowledgments
 
-Developed by the **UCSB Exoplanet Polarimetry Lab**. This work is inspired by previous implementations of GRaTeR and advances in JAX-based differentiable modeling. Additional thanks to Kellen Lawson for developing the Winnie package that this framework uses to model JWST PSFs.
+Developed by the **UCSB Exoplanet Polarimetry Lab**. This work is inspired by previous implementations of GRaTeR and advances in JAX-based differentiable modeling.
 
 ---
