@@ -43,7 +43,6 @@ GRaTeR-JAX/
    │── disk_model/    # Code for disk modeling
    │── optimization/  # Tools for statistical optimization and analysis
 |── docs/             # Documenation and tutorial notebooks
-│── environment.yml   # Dependencies
 │── pyproject.toml    # Installation file
 │── README.md
 ```
