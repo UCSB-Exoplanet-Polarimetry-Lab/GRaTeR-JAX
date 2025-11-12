@@ -1,6 +1,6 @@
 """
 objective_functions.py
-=============
+======================
 
 Objective functions for disk modeling and optimization.
 

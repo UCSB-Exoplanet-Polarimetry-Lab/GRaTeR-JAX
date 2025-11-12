@@ -15,3 +15,4 @@ tests/test_images
 tests/cdbs
 tests/stpsf-data
 grater_jax.egg-info
+test.ipynb
