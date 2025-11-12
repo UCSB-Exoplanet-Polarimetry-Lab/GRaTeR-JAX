@@ -48,6 +48,6 @@ and draws inspiration from related modeling frameworks such as [pyKLIP](https://
 
 ```{toctree}
 :maxdepth: 2
-:caption: Tutorials
 
+api/index
 tutorials/index
