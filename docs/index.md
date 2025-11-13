@@ -38,9 +38,7 @@ If you build upon this package, please cite both GRaTeR-JAX and the original GRa
 ---
 
 ## Acknowledgments
-This work was developed by the **UCSB Exoplanet Polarimetry Lab**.  
-It builds upon open-source scientific computing tools including JAX, NumPy, and Astropy,  
-and draws inspiration from related modeling frameworks such as [pyKLIP](https://bitbucket.org/pyklip/pyklip).
+This work was developed by the **UCSB Exoplanet Polarimetry Lab**.
 
 ---
 

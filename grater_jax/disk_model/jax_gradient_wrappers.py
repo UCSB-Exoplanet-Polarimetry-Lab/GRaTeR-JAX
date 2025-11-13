@@ -64,7 +64,7 @@ def residuals(image, target_image, err_map):
     return result
 
 def jax_model_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
-              distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+              throughput, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
     stellar psf point spread function, and misceallaneous parameters along with the target image and error map. This
@@ -97,6 +97,8 @@ def jax_model_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, di
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
         The error map for the target image.
+    throughput : np.ndarray
+        The throughput image to apply to the generated disk image.
     distance : float
         Distance to the star in pc (default 70.)
     pxInArcsec : float
@@ -157,10 +159,10 @@ def jax_model_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, di
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
-    return log_likelihood(scattered_light_image, target_image, err_map)
+    return log_likelihood(scattered_light_image*throughput, target_image, err_map)
 
 def jax_model_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+                     throughput, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
 
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
@@ -191,6 +193,8 @@ def jax_model_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSF
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
         The error map for the target image.
+    throughput : np.ndarray
+        The throughput image to apply to the generated disk image.
     distance : float
         Distance to the star in pc (default 70.)
     pxInArcsec : float
@@ -250,10 +254,10 @@ def jax_model_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSF
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
-    return log_likelihood(scattered_light_image, target_image, err_map)
+    return log_likelihood(scattered_light_image*throughput, target_image, err_map)
 
 def jax_model_spline_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
+                     throughput, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
                      knots=jnp.linspace(1,-1,6)):
 
     """
@@ -288,6 +292,8 @@ def jax_model_spline_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFMo
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
         The error map for the target image.
+    throughput : np.ndarray
+        The throughput image to apply to the generated disk image.
     distance : float
         Distance to the star in pc (default 70.)
     pxInArcsec : float
@@ -350,10 +356,10 @@ def jax_model_spline_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFMo
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
-    return log_likelihood(scattered_light_image, target_image, err_map)
+    return log_likelihood(scattered_light_image*throughput, target_image, err_map)
 
 def jax_model_spline_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
+                     throughput, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
                      flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
 
     """
@@ -385,6 +391,8 @@ def jax_model_spline_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, Ste
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
         The error map for the target image.
+    throughput : np.ndarray
+        The throughput image to apply to the generated disk image.
     distance : float
         Distance to the star in pc (default 70.)
     pxInArcsec : float
@@ -446,7 +454,7 @@ def jax_model_spline_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, Ste
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
-    return log_likelihood(scattered_light_image, target_image, err_map)
+    return log_likelihood(scattered_light_image*throughput, target_image, err_map)
 
 # JAX GRADS (comment out whatever grad functions you don't need to save gpu memory)
 

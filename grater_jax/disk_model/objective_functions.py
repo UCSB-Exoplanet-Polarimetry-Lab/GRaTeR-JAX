@@ -115,7 +115,8 @@ These objective functions serve as the middleware that connects the Optimizer cl
 """
 
 def objective_model(disk_params, spf_params, psf_params, misc_params,
-                       DiskModel, DistrModel, FuncModel, PSFModel, stellar_psf_params=None, StellarPSFModel=None, **kwargs):
+                       DiskModel, DistrModel, FuncModel, PSFModel, stellar_psf_params=None, StellarPSFModel=None,
+                       throughput=None, **kwargs):
 
     """
     Generate a disk model image given disk, scattering function, point spread function, stellar psf point spread function,
@@ -146,6 +147,8 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
         (parameter name, parameter value) pairs.
     StellarPSFModel : class, optional
         The scattering phase function model type, set to None be default indicating no stellar psf model.
+    throughput : np.ndarray, optional
+        The throughput image to apply to the generated disk image. Defaults to None, indicating all 1s.
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -154,6 +157,9 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
     jnp.ndarray
         Generated disk model image
     """
+
+    if throughput is None:
+        throughput = jnp.ones((misc_params['ny'], misc_params['nx']))
 
     if StellarPSFModel is None:
         stellar_psf_params = 0.
@@ -167,7 +173,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
             FuncModel.pack_pars(spf_params) if isinstance(spf_params, dict) else spf_params,
             PSFModel.pack_pars(psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
         )
@@ -177,7 +183,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
             pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             FuncModel.pack_pars(spf_params) if isinstance(spf_params, dict) else spf_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
         )
@@ -188,7 +194,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
             spf_params['knot_values'],
             PSFModel.pack_pars(psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
         )
@@ -198,7 +204,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
             pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             spf_params['knot_values'],
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
         )
@@ -207,7 +213,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
 
 def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
-                       **kwargs):
+                       throughput = None, **kwargs):
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
     stellar psf point spread function, and misceallaneous parameters along with the target image and error map.
@@ -241,6 +247,8 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
         The error map for the target image.
+    throughput : np.ndarray
+        The throughput image to apply to the generated disk image. Defaults to None, indicating all 1s.
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -252,7 +260,7 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
 
     model_image = objective_model(
         disk_params, spf_params, psf_params, stellar_psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel,
-        StellarPSFModel
+        StellarPSFModel, throughput=throughput, **kwargs
     )
 
     sigma2 = jnp.power(err_map, 2)
@@ -263,7 +271,7 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
 
 def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
-                       stellar_psf_params = None, StellarPSFModel = None, **kwargs):
+                       throughput = None, stellar_psf_params = None, StellarPSFModel = None, **kwargs):
     """
     Same as the objective_ll function but accepts replacement values for the given parameters in fit_keys.
     This is ideal for fitting as it provides a clean objective function for a given set of parameters.
@@ -304,6 +312,8 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
         The error map for the target image.
+    throughput : np.ndarray
+        The throughput image to apply to the generated disk image. Defaults to None, indicating all 1s.
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -312,6 +322,9 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
     float
         Log likelihood for the generated disk image, target image, and error map
     """
+
+    if throughput is None:
+        throughput = jnp.ones((misc_params['ny'], misc_params['nx']))
 
     if StellarPSFModel is None:
         stellar_psf_params = 0.
@@ -355,7 +368,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else spf_params,
             PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            thoughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
         )
@@ -365,7 +378,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else temp_spf_params['knot_values'],
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
         )
@@ -376,7 +389,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             temp_spf_params['knot_values'],
             PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
         )
@@ -386,7 +399,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             temp_spf_params['knot_values'],
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
         )
@@ -396,7 +409,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
 
 def objective_grad(disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
-                       stellar_psf_params = None, StellarPSFModel = None,
+                       throughput = None, stellar_psf_params = None, StellarPSFModel = None,
                         **kwargs):
     """
     Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
@@ -432,6 +445,8 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
         The error map for the target image.
+    throughput : np.ndarray
+        The throughput image to apply to the generated disk image. Defaults to None, indicating all
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -445,6 +460,9 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
         Note: not all parameters are supported for gradient evaluation due to limitations of the JAX model.
         Note: the raw gradient output is transformed in the Optimizer class which wraps this method nicely.
     """
+
+    if throughput is None:
+        throughput = jnp.ones((misc_params['ny'], misc_params['nx']))
     
     if StellarPSFModel is None:
         stellar_psf_params = 0.
@@ -458,7 +476,7 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             FuncModel.pack_pars(spf_params) if isinstance(spf_params, dict) else spf_params,
             PSFModel.pack_pars(psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            target_image, err_map,
+            target_image, err_map, throughput,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
@@ -469,7 +487,7 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             FuncModel.pack_pars(spf_params) if isinstance(spf_params, dict) else spf_params['knot_values'],
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            target_image, err_map,
+            target_image, err_map, throughput,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
@@ -482,7 +500,7 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             spf_params['knot_values'],
             PSFModel.pack_pars(psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            target_image, err_map,
+            target_image, err_map, throughput,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
@@ -493,7 +511,7 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             pack_pars(disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             spf_params['knot_values'],
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            target_image, err_map,
+            target_image, err_map, throughput,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
@@ -502,7 +520,7 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
     return gradients
 
 def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
-                       DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
+                       DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map, throughput = None,
                        stellar_psf_params = None, StellarPSFModel = None, **kwargs):
     """
     Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
@@ -546,6 +564,8 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
         The error map for the target image.
+    throughput : np.ndarray
+        The throughput image to apply to the generated disk image. Defaults to None, indicating all
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -559,6 +579,9 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
         Note: not all parameters are supported for gradient  evaluation due to limitations of the JAX model.
         Note: the raw gradient output is transformed in the Optimizer class which wraps this method nicely.
     """
+
+    if throughput is None:
+        throughput = jnp.ones((misc_params['ny'], misc_params['nx']))
 
     if StellarPSFModel is None:
         stellar_psf_params = 0.
@@ -595,7 +618,7 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else spf_params,
             PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            target_image, err_map,
+            target_image, err_map, throughput,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
@@ -606,7 +629,7 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else temp_spf_params['knot_values'],
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            target_image, err_map,
+            target_image, err_map, throughput,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
@@ -619,7 +642,7 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             temp_spf_params['knot_values'],
             PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            target_image, err_map,
+            target_image, err_map, throughput,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
@@ -630,7 +653,7 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             pack_pars(temp_disk_params, disk_params) if isinstance(disk_params, dict) else disk_params,
             temp_spf_params['knot_values'],
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            target_image, err_map,
+            target_image, err_map, throughput,
             distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
