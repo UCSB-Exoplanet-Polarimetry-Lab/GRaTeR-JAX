@@ -80,6 +80,7 @@ class Optimizer:
     """
     def __init__(self, DiskModel, DistrModel, FuncModel, PSFModel, disk_params, spf_params, psf_params,
                  misc_params, StellarPSFModel = None, stellar_psf_params = None, empirical_psf_image = None,
+                 throughput = None,
                  **kwargs):
         self.DiskModel = DiskModel
         self.DistrModel = DistrModel
@@ -94,6 +95,7 @@ class Optimizer:
         self.kwargs = kwargs
         self.name = 'test'
         self.last_fit = None
+        self.throughput = throughput
 
         EMP_PSF.img = empirical_psf_image
 
@@ -115,6 +117,23 @@ class Optimizer:
         """
         EMP_PSF.img = empirical_psf_image
 
+    def set_throughput(self, throughput):
+        """
+        Sets the throughput image to the given image.
+
+        Parameters
+        ----------
+        throughput : numpy.ndarray
+            2D array representing the throughput image.
+        Raises
+        ------
+        ValueError
+            If the shape of the throughput image does not match the specified image dimensions in misc_params.
+        """
+        if jnp.shape(throughput) != (self.misc_params['ny'], self.misc_params['nx']):
+            raise ValueError("Throughput image shape does not match the specified image dimensions in misc_params.")
+        self.throughput = throughput
+
     def get_model(self):
         """
         Returns the disk model as per the current parameters.
@@ -128,7 +147,7 @@ class Optimizer:
             self.disk_params, self.spf_params, self.psf_params, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
             stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
-            **self.kwargs
+            throughput=self.throughput, **self.kwargs
         )
     
     def get_objective_likelihood(self, params_fit, fit_keys, target_image, err_map):
@@ -154,7 +173,8 @@ class Optimizer:
         return objective_fit(
             params_fit, fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
-            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel, **self.kwargs
+            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
+            throughput = self.throughput, **self.kwargs
         )
     
     def get_gradient(self, keys, target_image, err_map):
@@ -203,7 +223,7 @@ class Optimizer:
         return self._convert_raw_gradient_output_to_1d_array(fit_keys, objective_fit_grad(params_fit, fit_keys, self.disk_params,
             self.spf_params, self.psf_params, self.misc_params, self.DiskModel, self.DistrModel, self.FuncModel,
             self.PSFModel, target_image, err_map, stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
-            **self.kwargs
+            throughput=self.throughput, **self.kwargs
         ))
     
     def get_disk(self):
@@ -220,7 +240,7 @@ class Optimizer:
         return objective_model(
             self.disk_params, self.spf_params, None, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, None,
-            stellar_psf_params=None, StellarPSFModel=None,
+            stellar_psf_params=None, StellarPSFModel=None, throughput = self.throughput,
             **self.kwargs
         )
     
