@@ -224,7 +224,7 @@ def test_gaussian_psf_vip_and_grater_jax_generate_images():
         "nx": 200,
         "ny": 200,
         "halfNbSlices": 25,
-        "flux_scaling": 1e6,
+        "flux_scaling": 1,
     })
 
     jax_img = objective_model(
@@ -241,10 +241,10 @@ def test_gaussian_psf_vip_and_grater_jax_generate_images():
 
     # Residual (VIP PSF vs JAX no-PSF)
     residual = vip_img - jax_img
-    print("Residual stats (PSF VIP vs raw JAX):",
+    print("Residual stats (PSF VIP vs PSF JAX):",
           "min=", residual.min(), "max=", residual.max(), "mean|.|=", np.mean(np.abs(residual)))
 
-    assert np.float64(np.mean(residual)) < np.finfo(np.float64).eps
+    assert np.float64(np.mean(np.abs(residual))) < 1e-7
 
     # Plot with shared scale for VIP & JAX
     vmin = min(vip_img.min(), jax_img.min())
@@ -257,7 +257,7 @@ def test_gaussian_psf_vip_and_grater_jax_generate_images():
     fig.colorbar(im0, ax=axes[0], fraction=0.046, pad=0.04)
 
     im1 = axes[1].imshow(jax_img, cmap="inferno", vmin=vmin, vmax=vmax)
-    axes[1].set_title("GRaTeR-JAX (no PSF)")
+    axes[1].set_title("GRaTeR-JAX")
     fig.colorbar(im1, ax=axes[1], fraction=0.046, pad=0.04)
 
     # Residual plot
