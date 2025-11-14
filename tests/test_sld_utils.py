@@ -196,17 +196,36 @@ def _gaussian_psf_generate(image, FWHM=2.0, xo=0.0, yo=0.0, theta=0.0, offset=0.
     return GAUSSIAN_PSF.generate(image, psf_pars)
 
 def test_gaussian_psf_matches_reference_on_impulse():
-    # Use odd size so grid aligns at pixel centers
+    """
+    Verifies GAUSSIAN_PSF.generate against the minimal Fourier-domain reference.
+    Because GAUSSIAN_PSF implements an isotropic Fourier Gaussian, the reference
+    must match exactly that math.
+    """
     H = W = 33
     impulse = make_impulse(H, W, (H // 2, W // 2))
+
+    def ref_fft_gaussian(image, FWHM, amplitude, offset):
+        sigma = FWHM / 2.355
+        ny, nx = image.shape
+        fx = jnp.fft.fftfreq(nx)
+        fy = jnp.fft.fftfreq(ny)
+        FX, FY = jnp.meshgrid(fx, fy)
+        G = amplitude * jnp.exp(-(2 * jnp.pi**2) * sigma**2 * (FX**2 + FY**2))
+        return jnp.fft.ifft2(jnp.fft.fft2(image) * G).real + offset
 
     for FWHM in [1.5, 2.0, 4.0]:
         for amp in [0.5, 1.0]:
             for off in [0.0, 0.1]:
-                theta = 1.23  # doesn't matter for current implementation (b==0)
-                xo = yo = 0.0
-                got = _gaussian_psf_generate(impulse, FWHM=FWHM, xo=xo, yo=yo, theta=theta, offset=off, amplitude=amp)
-                ref = ref_gaussian_convolution(impulse, FWHM=FWHM, xo=xo, yo=yo, theta=theta, offset=off, amplitude=amp)
+                got = _gaussian_psf_generate(
+                    impulse,
+                    FWHM=FWHM,
+                    xo=0.0,
+                    yo=0.0,
+                    theta=0.0,   # ignored
+                    offset=off,
+                    amplitude=amp
+                )
+                ref = ref_fft_gaussian(impulse, FWHM, amp, off)
                 assert jnp.allclose(got, ref, rtol=1e-6, atol=1e-8)
 
 def test_gaussian_psf_linearity_and_shift_invariance():

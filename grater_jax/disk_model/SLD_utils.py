@@ -391,19 +391,29 @@ class GAUSSIAN_PSF(Jax_class):
     @classmethod
     @partial(jax.jit, static_argnums=(0))
     def generate(cls, image, psf_params):
-        ny, nx = image.shape  # Get image size
-        x = jnp.linspace(-nx // 2, nx // 2, nx)
-        y = jnp.linspace(-ny // 2, ny // 2, ny)
-        X, Y = jnp.meshgrid(x, y)  # Create 2D grid
+        ny, nx = image.shape    # Get image size
         p_dict = cls.unpack_pars(psf_params)
-        sigma = p_dict['FWHM'] / 2.355
-        a = (jnp.cos(p_dict['theta'])**2)/(2*sigma**2) + (jnp.sin(p_dict['theta'])**2)/(2*sigma**2)
-        b = -(jnp.sin(2*p_dict['theta']))/(4*sigma**2) + (jnp.sin(2*p_dict['theta']))/(4*sigma**2)
-        c = (jnp.sin(p_dict['theta'])**2)/(2*sigma**2) + (jnp.cos(p_dict['theta'])**2)/(2*sigma**2)
-        psf_image = p_dict['offset'] + p_dict['amplitude']*jnp.exp( - (a*((X-p_dict['xo'])**2) + 2*b*(X-p_dict['xo'])
-                                                                      *(Y-p_dict['yo']) + c*((Y-p_dict['yo'])**2)))
-        return jss.convolve2d(image, psf_image, mode='same')
-    
+        FWHM = p_dict["FWHM"]
+        amplitude = p_dict["amplitude"]
+        offset = p_dict["offset"]
+        theta = p_dict["theta"]
+        sigma = FWHM / 2.355
+        fx = jnp.fft.fftfreq(nx)  # cycles per pixel
+        fy = jnp.fft.fftfreq(ny)
+        FX, FY = jnp.meshgrid(fx, fy) # Rotating the frequency grid
+        cost = jnp.cos(theta)
+        sint = jnp.sin(theta)
+        FXr = FX * cost + FY * sint
+        FYr = -FX * sint + FY * cost
+        gaussian_filter = jnp.exp(
+            -2.0 * (jnp.pi ** 2) * (sigma ** 2) * (FXr ** 2 + FYr ** 2)
+        )
+        gaussian_filter = amplitude * gaussian_filter
+        img_fft = jnp.fft.fft2(image)
+        filtered_fft = img_fft * gaussian_filter
+        smoothed = jnp.fft.ifft2(filtered_fft).real
+        return smoothed + offset
+
 
 class EMP_PSF(Jax_class):
     """Empirical point spread function (PSF) model."""
