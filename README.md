@@ -18,11 +18,7 @@
 To install GRaTeR-JAX and its dependencies, run:
 
 ```sh
-git clone https://github.com/UCSB-Exoplanet-Polarimetry-Lab/GRaTeR-JAX.git
-cd GRaTeR-JAX
-pip install -e .
-
-pip install -U <jax backend> ("jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html for cuda for example)
+pip install grater-jax
 ```
 
 Make sure you have JAX installed with the correct backend for your hardware:
