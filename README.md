@@ -1,5 +1,7 @@
 # GRaTeR-JAX
 
+[![Run Tests](https://github.com/UCSB-Exoplanet-Polarimetry-Lab/GRaTeR-JAX/actions/workflows/tests.yml/badge.svg)](https://github.com/UCSB-Exoplanet-Polarimetry-Lab/GRaTeR-JAX/actions/workflows/tests.yml)
+
 **GRaTeR-JAX** is a machine learning JAX-based implementation of the **Generalized Radial Transporter (GRaTeR)** framework, designed for modeling scattered light disks in protoplanetary systems. This repository provides tools for forward modeling, optimization, and parameter estimation of scattered light disk images using JAX's accelerated computations.
 
 <img src="https://github.com/user-attachments/assets/c10f45e8-5449-4891-b6a7-33954cf6d954" width="300">
