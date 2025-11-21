@@ -62,11 +62,101 @@ def generate_vip_synthetic_target(nx=200, ny=200):
     assert vip_img.shape == (nx, ny)
     return vip_img.astype(np.float32)
 
-
 # ================================
 # Gradient test
 # ================================
 def test_empirical_gradient():
+    """Compare analytic and numeric gradients with NO PSF convolution."""
+
+    # Synthetic VIP target
+    target_image = generate_vip_synthetic_target(nx=140, ny=140)
+    err_map = np.ones_like(target_image, dtype=np.float32)
+
+    # GRaTeR-JAX parameter setup
+    start_disk_params = Parameter_Index.disk_params.copy()
+    start_spf_params  = InterpolatedUnivariateSpline_SPF.params.copy()
+
+    # No PSF → both the class and params are None
+    start_psf_params  = None
+
+    start_misc_params = Parameter_Index.misc_params.copy()
+
+    start_disk_params.update({
+        "sma": 46.0,
+        "inclination": 80.0,
+        "position_angle": 27.5,
+        "x_center": 70.0,
+        "y_center": 70.0,
+        "flux_scaling": 1.0,
+    })
+
+    start_spf_params["num_knots"] = 5
+
+    start_misc_params.update({
+        "distance": 50.0,
+        "nx": 140,
+        "ny": 140,
+        "pxInArcsec": 0.01225,
+    })
+
+    # Initialize optimizer with NO PSF model
+    opt = Optimizer(
+        ScatteredLightDisk,
+        DustEllipticalDistribution2PowerLaws,
+        InterpolatedUnivariateSpline_SPF,
+        PSFModel=None,
+        disk_params=start_disk_params,
+        spf_params=start_spf_params,
+        psf_params=start_psf_params,
+        misc_params=start_misc_params,
+    )
+
+    # SPF knots
+    opt.inc_bound_knots()
+    opt.initialize_knots(target_image)
+
+    # Compile model + gradient (no PSF path)
+    opt.jit_compile_model()
+    opt.jit_compile_gradient(target_image, err_map)
+
+    # Parameters to test
+    fit_keys = ["sma", "alpha_in"]
+
+    analytic_grad = opt.get_objective_gradient(
+        [46.0, 5.0], fit_keys, target_image, err_map
+    )
+
+    # Finite-difference gradient
+    eps = 1e-3
+    numeric_grad = np.zeros_like(analytic_grad)
+    base_params = opt.get_values(fit_keys)
+
+    for i in range(len(fit_keys)):
+        params_up = base_params.copy()
+        params_down = base_params.copy()
+
+        params_up[i] += eps
+        params_down[i] -= eps
+
+        ll_up = opt.get_objective_likelihood(params_up, fit_keys, target_image, err_map)
+        ll_down = opt.get_objective_likelihood(params_down, fit_keys, target_image, err_map)
+
+        numeric_grad[i] = (ll_up - ll_down) / (2 * eps)
+
+    # Diagnostics
+    print("\nGradient Comparison (NO PSF):")
+    for k, a, n in zip(fit_keys, analytic_grad, numeric_grad):
+        print(f"{k:12s} | analytic={a:+.6e}  numeric={n:+.6e}")
+
+    # Checks
+    assert np.all(np.isfinite(analytic_grad))
+    assert np.all(np.isfinite(numeric_grad))
+    assert np.allclose(analytic_grad, numeric_grad, rtol=1e-2, atol=1e-4)
+
+# ================================
+# Gradient test (with PSF)
+# ================================
+def test_empirical_gradient_PSF():
     """Compare analytic and numeric gradients on synthetic VIP disk + synthetic PSF."""
 
     # Synthetic inputs
