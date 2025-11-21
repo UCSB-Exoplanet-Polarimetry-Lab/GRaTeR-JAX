@@ -244,7 +244,12 @@ class ScatteredLightDisk(Jax_class):
         for il in range(1, nbSlices):
             scattered_light_map += (ll[il]-ll[il-1]) * (limage[il-1, :, :] +
                                                              limage[il, :, :])
+            
 
+        dl = ll[1:] - ll[:-1]                      # (nbSlices-1,)
+        pair_sum = limage[:-1] + limage[1:]        # (nbSlices-1, H, W)
+
+        scattered_light_map = jnp.sum(dl[:, None, None] * pair_sum, axis=0)
         scattered_light_map = jnp.where(validPixel_map, scattered_light_map * dl_map / 2. * disk["pxInAU"]**2, 0)
 
         #ideally should check for valid pixel map
