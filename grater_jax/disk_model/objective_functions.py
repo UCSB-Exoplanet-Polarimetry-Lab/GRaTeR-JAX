@@ -332,11 +332,11 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
         psf_params = 0.
 
     # These temporary dictionaries are edited based on params_fit
-    temp_disk_params = disk_params.copy() if isinstance(disk_params, dict) else {}
-    temp_spf_params = spf_params.copy() if isinstance(spf_params, dict) else {}
-    temp_psf_params = psf_params.copy() if isinstance(psf_params, dict) else {}
-    temp_stellar_psf_params = stellar_psf_params.copy() if isinstance(stellar_psf_params, dict) else {}
-    temp_misc_params = misc_params.copy() if isinstance(misc_params, dict) else {}
+    temp_disk_params = disk_params.copy() if isinstance(disk_params, dict) else {0.}
+    temp_spf_params = spf_params.copy() if isinstance(spf_params, dict) else {0.}
+    temp_psf_params = psf_params.copy() if isinstance(psf_params, dict) else {0.}
+    temp_stellar_psf_params = stellar_psf_params.copy() if isinstance(stellar_psf_params, dict) else {0.}
+    temp_misc_params = misc_params.copy() if isinstance(misc_params, dict) else {0.}
 
     # Corresponding index of params_fit for each key in fit_keys
     param_index = 0
@@ -368,7 +368,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             FuncModel.pack_pars(temp_spf_params) if isinstance(spf_params, dict) else spf_params,
             PSFModel.pack_pars(temp_psf_params) if isinstance(psf_params, dict) else psf_params,
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
-            thoughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
+            throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             flux_scaling=misc_params['flux_scaling']
         )
@@ -589,11 +589,11 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
         psf_params = 0.
 
     # These temporary dictionaries are edited based on params_fit
-    temp_disk_params = disk_params.copy() if isinstance(disk_params, dict) else {}
-    temp_spf_params = spf_params.copy() if isinstance(spf_params, dict) else {}
-    temp_psf_params = psf_params.copy() if isinstance(psf_params, dict) else {}
-    temp_stellar_psf_params = stellar_psf_params.copy() if isinstance(stellar_psf_params, dict) else {}
-    temp_misc_params = misc_params.copy() if isinstance(misc_params, dict) else {}
+    temp_disk_params = disk_params.copy() if isinstance(disk_params, dict) else {0.}
+    temp_spf_params = spf_params.copy() if isinstance(spf_params, dict) else {0.}
+    temp_psf_params = psf_params.copy() if isinstance(psf_params, dict) else {0.}
+    temp_stellar_psf_params = stellar_psf_params.copy() if isinstance(stellar_psf_params, dict) else {0.}
+    temp_misc_params = misc_params.copy() if isinstance(misc_params, dict) else {0.}
 
     # Corresponding index of params_fit for each key in fit_keys
     param_index = 0
