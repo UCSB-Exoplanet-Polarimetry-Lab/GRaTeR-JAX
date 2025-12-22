@@ -261,15 +261,15 @@ class Optimizer:
         values = []
 
         for key in keys:
-            if key in self.disk_params:
+            if self.disk_params is not None and key in self.disk_params:
                 values.append(self.disk_params[key])
-            elif key in self.spf_params:
+            elif self.spf_params is not None and key in self.spf_params:
                 values.append(self.spf_params[key])
-            elif key in self.psf_params:
+            elif self.psf_params is not None and key in self.psf_params:
                 values.append(self.psf_params[key])
-            elif key in self.stellar_psf_params:
-                values.append(self.psf_params[key])
-            elif key in self.misc_params:
+            elif self.stellar_psf_params is not None and key in self.stellar_psf_params:
+                values.append(self.stellar_psf_params[key])
+            elif self.misc_params is not None and key in self.misc_params:
                 values.append(self.misc_params[key])
             else:
                 values.append(None)
