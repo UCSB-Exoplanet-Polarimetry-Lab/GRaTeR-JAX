@@ -27,6 +27,8 @@ Make sure you have JAX installed with the correct backend for your hardware:
 pip install --upgrade "jax[cpu]"  # or "jax[cuda]" for GPU
 ```
 
+Highly recommended to install this on a fresh environment, just to be safe.
+
 ## Usage
 
 Refer to the documentation at [grater-jax.readthedocs.io](https://grater-jax.readthedocs.io/en/latest/).
