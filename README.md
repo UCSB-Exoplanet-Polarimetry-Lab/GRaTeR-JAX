@@ -2,7 +2,7 @@
 
 [![Run Tests](https://github.com/UCSB-Exoplanet-Polarimetry-Lab/GRaTeR-JAX/actions/workflows/tests.yml/badge.svg)](https://github.com/UCSB-Exoplanet-Polarimetry-Lab/GRaTeR-JAX/actions/workflows/tests.yml)
 
-**GRaTeR-JAX** is a machine learning JAX-based implementation of the **Generalized Radial Transporter (GRaTeR)** framework, designed for modeling scattered light disks in protoplanetary systems. This repository provides tools for forward modeling, optimization, and parameter estimation of scattered light disk images using JAX's accelerated computations.
+**GRaTeR-JAX** is a machine learning JAX-based implementation of the **Generalized Radial Transporter (GRaTeR)** framework [(Augereau+ 1999)](https://arxiv.org/abs/astro-ph/9906429), designed for modeling scattered-light images of debris disks. This repository provides tools for forward modeling, optimization, and parameter estimation of scattered-light disk images using JAX's accelerated computations.
 
 <img src="https://github.com/user-attachments/assets/c10f45e8-5449-4891-b6a7-33954cf6d954" width="300">
 
@@ -15,7 +15,7 @@
 
 ## Installation
 
-To install GRaTeR-JAX and its dependencies, run:
+To install GRaTeR-JAX and its dependencies, create a new Conda environment with Python and run:
 
 ```sh
 pip install grater-jax
@@ -26,6 +26,8 @@ Make sure you have JAX installed with the correct backend for your hardware:
 ```sh
 pip install --upgrade "jax[cpu]"  # or "jax[cuda]" for GPU
 ```
+
+Highly recommended to install this on a fresh environment, just to be safe.
 
 ## Usage
 
