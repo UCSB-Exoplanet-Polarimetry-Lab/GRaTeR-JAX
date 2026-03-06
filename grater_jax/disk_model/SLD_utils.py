@@ -302,10 +302,29 @@ class DoubleHenyeyGreenstein_SPF(Jax_class):
         
         return hg1+hg2
     
+class Spline_SPF(Jax_class):
+    @classmethod
+    @partial(jax.jit, static_argnums=(0,))
+    def init(cls, p_arr, knots):
+        pass
+
+    @classmethod
+    def get_knots(cls, p_dict):
+        pass
+
+    @classmethod
+    @partial(jax.jit, static_argnums=(0,))
+    def pack_pars(cls, p_dict):
+        pass
+    
+    @classmethod
+    @partial(jax.jit, static_argnums=(0,))
+    def compute_phase_function_from_cosphi(cls, spline_model, cos_phi):
+        pass
 
 # Uses 6 knots by default
 # Values must be cos(phi) not phi
-class InterpolatedUnivariateSpline_SPF(Jax_class):
+class InterpolatedUnivariateSpline_SPF(Spline_SPF):
     """
     Implementation of a spline scattering phase function. Uses 6 knots by default, takes knot y values as parameters.
     Locations are fixed to the given knots, pack_pars and init both return the spline model itself
@@ -322,7 +341,7 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         y values of the knots
     """
 
-    params = {'backscatt_bound': -1, 'forwardscatt_bound': 1, 'num_knots': 6, 'knot_values': jnp.ones(6)}
+    params = {'backscatt_bound': -1, 'forwardscatt_bound': 1, 'num_knots': 5, 'knot_values': jnp.ones(5)}
 
     @classmethod
     @partial(jax.jit, static_argnums=(0))
@@ -361,6 +380,50 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
             must be calculated.
         """
         
+        return spline_model(cos_phi)
+        
+
+class FixedPointInterpolatedUnivariateSpline_SPF(Spline_SPF):
+    params = {
+        "backscatt_bound": -1.0,
+        "forwardscatt_bound": 1.0,
+        "num_knots": 5,
+    }
+
+    @classmethod
+    def get_knots(cls, p_dict):
+        fwd = p_dict["forwardscatt_bound"]
+        back = p_dict["backscatt_bound"]
+
+        n_total = max(int(p_dict["num_knots"]), 3)
+        n_variable = n_total - 1
+        n_right = n_variable // 2
+        n_left = n_variable - n_right
+
+        left = jnp.linspace(fwd, 0.0, n_left + 1)[:-1] if n_left > 0 else jnp.array([], dtype=jnp.float32)
+        right = jnp.linspace(0.0, back, n_right + 1)[1:] if n_right > 0 else jnp.array([], dtype=jnp.float32)
+        
+        return jnp.concatenate([left, jnp.array([0.0], dtype=left.dtype), right])
+
+    @classmethod
+    @partial(jax.jit, static_argnums=(0,))
+    def init(cls, p_arr, knots):
+        return cls.pack_pars(p_arr, knots=knots)
+
+    @classmethod
+    @partial(jax.jit, static_argnums=(0,))
+    def pack_pars(cls, p_arr, knots):
+        idx0 = jnp.argmin(jnp.abs(knots))
+        N = knots.shape[0]
+        p_arr_padded = jnp.append(p_arr, 0.0) 
+        idx = jnp.arange(N)
+        gather_idx = jnp.where(idx < idx0, idx, idx - 1)
+        vals = jnp.where(idx == idx0, 1.0, p_arr_padded[gather_idx])
+        return InterpolatedUnivariateSpline(knots, vals)
+
+    @classmethod
+    @partial(jax.jit, static_argnums=(0,))
+    def compute_phase_function_from_cosphi(cls, spline_model, cos_phi):
         return spline_model(cos_phi)
 
 

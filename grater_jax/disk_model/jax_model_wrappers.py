@@ -15,8 +15,8 @@ import jax.numpy as jnp
 from functools import partial
 
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, throughput,
-              distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
+              flux_scaling, throughput, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
@@ -113,9 +113,9 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_
     return scattered_light_image*throughput 
 
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, throughput,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'flux_scaling', 'nx', 'ny', 'halfNbSlices'])
+def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params,
+                     flux_scaling, throughput, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
@@ -140,6 +140,8 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
     stellar_psf_params : jnp.array, optional
         The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
         (parameter name, parameter value) pairs.
+    flux_scaling : float
+        Scaling factor for disk model.
     target_image : np.ndarray
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
@@ -157,8 +159,6 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
         number of pixels along the y axis of the image (default 200)
     halfNbSlices : integer
         half number of distances along the line of sight
-    flux_scaling : float
-        Scaling factor for disk model.
             
     Returns
     -------
@@ -209,8 +209,8 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
 
 
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, throughput,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
+def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params,
+                     flux_scaling, throughput, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
                      knots=jnp.linspace(1,-1,6)):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
@@ -239,6 +239,8 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
     stellar_psf_params : jnp.array, optional
         The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
         (parameter name, parameter value) pairs.
+    flux_scaling : float
+        Scaling factor for disk model.
     target_image : np.ndarray
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
@@ -256,8 +258,6 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
         number of pixels along the y axis of the image (default 200)
     halfNbSlices : integer
         half number of distances along the line of sight
-    flux_scaling : float
-        Scaling factor for disk model.
             
     Returns
     -------
@@ -311,9 +311,9 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
 
 
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
-def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, throughput,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
-                     flux_scaling = 1e6, knots=jnp.linspace(1,-1,6)):
+def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params,
+                            flux_scaling, throughput, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
+                            knots=jnp.linspace(1,-1,6)):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
@@ -341,6 +341,8 @@ def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, Stella
     stellar_psf_params : jnp.array, optional
         The corresponding parameter dictionary for the on axis stellar psf model, dictionary is made of
         (parameter name, parameter value) pairs.
+    flux_scaling : float
+        Scaling factor for disk model.
     target_image : np.ndarray
         The target image that the log likelihood is being computed for.
     err_map : np.ndarray
@@ -358,8 +360,6 @@ def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, Stella
         number of pixels along the y axis of the image (default 200)
     halfNbSlices : integer
         half number of distances along the line of sight
-    flux_scaling : float
-        Scaling factor for disk model.
             
     Returns
     -------

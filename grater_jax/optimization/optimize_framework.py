@@ -36,6 +36,9 @@ from grater_jax.disk_model.objective_functions import objective_model, objective
 import json
 import numpy as np
 from grater_jax.disk_model.SLD_utils import *
+import torch
+from torch import nn
+import torch.optim as optim
 
 # Built for new objective function
 class Optimizer:
@@ -491,6 +494,83 @@ class Optimizer:
             self.scale_spline_to_fixed_point(0, 1)
 
         return soln
+    
+    def torch_optimize(self, fit_keys, logscaled_params, array_params, target_image, err_map, 
+                    iters=500, lr=1e-2, optimizer_type='Adam'):
+        """
+        Optimizes model parameters using PyTorch optimizers with externally computed JAX gradients.
+
+        This method bridges JAX-based likelihood evaluations with PyTorch's optimization 
+        infrastructure. It flattens the selected parameters into a single Torch tensor, 
+        manually injects JAX-calculated gradients into the Torch graph, and performs 
+        parameter updates.
+
+        Args:
+            fit_keys (list of str): Keys of the parameters to be optimized.
+            logscaled_params (list of str): Parameter keys that should be optimized in log-space.
+            array_params (list of str): Parameter keys that represent multi-dimensional arrays.
+            target_image (ndarray): The observation data to fit against.
+            err_map (ndarray): The uncertainty or noise map for the likelihood calculation.
+            iters (int, optional): Number of optimization iterations. Defaults to 500.
+            lr (float, optional): Learning rate for the optimizer. Defaults to 1e-2.
+            optimizer_type (str, optional): Type of PyTorch optimizer ('Adam' or 'SGD'). 
+                Defaults to 'Adam'.
+
+        Returns:
+            dict: The final unflattened parameter dictionary after optimization.
+        """
+        # 1. Prepare flags and initial values
+        logscales = self._highlight_selected_params(fit_keys, logscaled_params)
+        is_arrays = self._highlight_selected_params(fit_keys, array_params)
+        
+        # We use your existing flattening logic to get the starting point
+        init_x = self._flatten_params(fit_keys, logscales, is_arrays)
+        
+        # 2. Initialize Torch Parameter
+        # We optimize a single flattened vector to stay consistent with your JAX logic
+        theta = nn.Parameter(torch.tensor(init_x, dtype=torch.float32))
+        
+        # 3. Choose Optimizer
+        if optimizer_type == 'Adam':
+            optimizer = optim.Adam([theta], lr=lr)
+        else:
+            optimizer = optim.SGD([theta], lr=lr, momentum=0.9)
+
+        print(f"Optimizing NLL via PyTorch {optimizer_type}...")
+
+        for i in range(iters):
+            optimizer.zero_grad()
+            
+            # 1. Keep the array for gradient math
+            current_x_np = theta.detach().numpy()
+            
+            # 2. Create a list ONLY for the JAX unflattening logic
+            current_x_list = current_x_np.tolist()
+            
+            # 3. Get Values for JAX (Uses the list)
+            params_unflattened = self._unflatten_params(current_x_list, fit_keys, logscales, is_arrays)
+            
+            # 4. Compute Loss
+            nll_val = -self.get_objective_likelihood(params_unflattened, fit_keys, target_image, err_map)
+            
+            # 5. Bridge the Gradient
+            jax_grad = self.get_objective_gradient(params_unflattened, fit_keys, target_image, err_map)
+            
+            # 6. Correct the Grad (Uses the original numpy array)
+            # This is where the TypeError was likely triggered before
+            corrected_grad = self._adjust_gradient_for_logscales(
+                -jax_grad, fit_keys, logscales, is_arrays, current_x_np
+            )
+            
+            theta.grad = torch.from_numpy(corrected_grad).float()
+            optimizer.step()
+
+        # 7. Final Update to the Optimizer object state
+        final_params = self._unflatten_params(theta.detach().numpy(), fit_keys, logscales, is_arrays)
+        self._update_params(final_params, fit_keys)
+        self.last_fit = f'torch_{optimizer_type.lower()}'
+
+        return final_params
 
     def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50, 
             continue_from=False, scale_objective_function_for_shape=False,**kwargs):
@@ -636,45 +716,61 @@ class Optimizer:
         return self.spf_params
     
     # Have to call this when using spline spfs
-    def initialize_knots(self, target_image, dhg_params = [0.5, 0.5, 0.5]):
+    def initialize_knots(self, target_image, dhg_params=[0.5, 0.5, 0.5]):
         """
-        Initializes spline knots and flux scaling value to relatively close values to the target image. Need to run this
-        before any jit_compile method is run due to those methods relying on initialized knots.
+        Initializes spline knots and flux scaling. For FixedPoint splines, 
+        knot_values is reduced to size N-1 to exclude the anchor point.
+        """
+        if not issubclass(self.FuncModel, Spline_SPF):
+            raise Exception("initialize_knots only works for Spline SPF functions.")
 
-        Parameters:
-        -----------
-        target_image : numpy.ndarray
-            2d numpy array of target image
-        dhg_params : list
-            Initial double henyey greenstein function values that the spline will be oriented to match for the initial
-            guess.
-        """
-        ## Get a good scaling
+        # 1. Get initial guess from DHG profile
+        knots = self.FuncModel.get_knots(self.spf_params)
+        raw_vals = DoubleHenyeyGreenstein_SPF.compute_phase_function_from_cosphi(
+            dhg_params, knots
+        )
+
+        # 2. Estimate initial flux scaling
         y, x = np.indices(target_image.shape)
-        y -= self.misc_params['ny']//2
-        x -= self.misc_params['nx']//2 
-        rads = np.sqrt(x**2+y**2)
+        y -= self.misc_params['ny'] // 2
+        x -= self.misc_params['nx'] // 2 
+        rads = np.sqrt(x**2 + y**2)
         mask = (rads > 12)
 
-        self.spf_params['knot_values'] = DoubleHenyeyGreenstein_SPF.compute_phase_function_from_cosphi(dhg_params, InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params))
-
+        # Temp assignment to compute initial brightness
+        self.spf_params['knot_values'] = raw_vals
         init_image = self.get_model()
-
+        
         if self.disk_params['inclination'] > 70: 
-            knot_scale = 1.*np.nanpercentile(target_image[mask], 99) / (jnp.nanmax(init_image) + 1e-40)
+            knot_scale = 1.0 * np.nanpercentile(target_image[mask], 99) / (jnp.nanmax(init_image) + 1e-40)
         else: 
-            knot_scale = 0.2*np.nanpercentile(target_image[mask], 99) / (jnp.nanmax(init_image) + 1e-40)
+            knot_scale = 0.2 * np.nanpercentile(target_image[mask], 99) / (jnp.nanmax(init_image) + 1e-40)
             
-        self.spf_params['knot_values'] = self.spf_params['knot_values'] * knot_scale
+        scaled_vals = raw_vals * knot_scale
 
-        #if self.FuncModel == FixedInterpolatedUnivariateSpline_SPF:
-            #adjust_scale = 1.0 / InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
-                #InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)),
-                #0.0)
-            #self.spf_params['knot_values'] = self.spf_params['knot_values'] * adjust_scale
-            #self.misc_params['flux_scaling'] = self.misc_params['flux_scaling'] / adjust_scale
-        #else:
-        self.scale_spline_to_fixed_point(0, 1)
+        # 3. Handle Normalization and parameter stripping
+        if self.FuncModel == InterpolatedUnivariateSpline_SPF:
+            # Standard: Keep all knots, normalize so cos(0) is 1.0
+            spline_at_90 = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
+                InterpolatedUnivariateSpline_SPF.init(scaled_vals, knots), 0.0
+            )
+            adjust_scale = 1.0 / (spline_at_90 + 1e-40)
+            self.spf_params['knot_values'] = scaled_vals * adjust_scale
+            self.misc_params['flux_scaling'] /= adjust_scale
+
+        elif self.FuncModel == FixedPointInterpolatedUnivariateSpline_SPF:
+            # FixedPoint: Strip the center knot so the dict has N-1 values
+            idx0 = jnp.argmin(jnp.abs(knots))
+            val_at_fixed_point = scaled_vals[idx0]
+            
+            # Transfer the magnitude to the global scaling
+            self.misc_params['flux_scaling'] *= val_at_fixed_point
+            
+            # Normalize and remove the fixed knot (the class will re-insert 1.0)
+            normalized_knots = scaled_vals / (val_at_fixed_point + 1e-40)
+            variable_knots = jnp.delete(normalized_knots, idx0)
+            
+            self.spf_params['knot_values'] = variable_knots
 
     def compute_stellar_psf_image(self):
         """
@@ -705,6 +801,13 @@ class Optimizer:
         Only works for Interpolated Spline SPF Functions. Scales the spline by a single constant to match it with
         a single point. Usually scaled to (cosphi = 0, spline value = 1).
         """
+        if self.FuncModel == InterpolatedUnivariateSpline_SPF:
+            pass
+        elif self.FuncModel == FixedPointInterpolatedUnivariateSpline_SPF:
+            return # No need to scale since the fixed point is already anchored at 1.0
+        else:
+            raise Exception("scale_spline_to_fixed_point only works for Spline_SPFs.")
+        
         adjust_scale = spline_val / InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
             InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)),
             cosphi)
@@ -733,19 +836,40 @@ class Optimizer:
     def plot_spline(self, num_points=100):
         fig, ax = plt.subplots()
 
-        x = np.linspace(-1, 1, num_points)
-        knots = InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)
-        spline = InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], knots)
+        if self.FuncModel == InterpolatedUnivariateSpline_SPF:
+            
+            x = np.linspace(-1, 1, num_points)
+            knots = InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)
+            spline = InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], knots)
 
-        y = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, x)
-        y_knots = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, knots)
+            y = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, x)
+            y_knots = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, knots)
 
-        ax.set_title("Spline Fit")
-        ax.plot(x, y, label="Spline curve")
-        ax.scatter(knots, y_knots, color="red", label="Knots")
-        ax.legend()
+            ax.set_title("Spline Fit")
+            ax.plot(x, y, label="Spline curve")
+            ax.scatter(knots, y_knots, color="red", label="Knots")
+            ax.legend()
 
-        return fig
+            return fig
+    
+        elif self.FuncModel == FixedPointInterpolatedUnivariateSpline_SPF:
+            
+            x = np.linspace(-1, 1, num_points)
+            knots = FixedPointInterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)
+            spline = FixedPointInterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], knots)
+
+            y = FixedPointInterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, x)
+            y_knots = FixedPointInterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, knots)
+
+            ax.set_title("Fixed Point Spline Fit")
+            ax.plot(x, y, label="Spline curve")
+            ax.scatter(knots, y_knots, color="red", label="Knots")
+            ax.legend()
+
+            return fig
+        
+        else:
+            raise Exception(f"{self.FuncModel} is not a supported spf function for plotting.")
 
     def get_flux_scale(self):
         """
@@ -1086,6 +1210,7 @@ class Optimizer:
         grad_spf = gradients[1]
         grad_psf = gradients[2] if len(gradients) > 2 else None
         grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2]
+        grad_flux = gradients[4] if len(gradients) > 4 else gradients[3]
 
         grads = []
 
@@ -1094,7 +1219,7 @@ class Optimizer:
         spf_idx_map = {k: i for i, k in enumerate(self.spf_params)}
         psf_idx_map = {k: i for i, k in enumerate(self.psf_params)} if (self.PSFModel != Winnie_PSF and self.PSFModel != None) else {}
         
-        use_interpolated_spf = issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF)
+        use_interpolated_spf = issubclass(self.FuncModel, Spline_SPF)
         use_winnie_psf = self.PSFModel != None and issubclass(self.PSFModel, Winnie_PSF)
 
         if self.StellarPSFModel is not None:
@@ -1112,6 +1237,8 @@ class Optimizer:
                 grads.append(grad_psf[psf_idx_map[key]])
             elif self.StellarPSFModel is not None and key in self.stellar_psf_params:
                 grads.append(jnp.ravel(stellar_grad_dict[key]).tolist())
+            elif key == 'flux_scaling':
+                grads.append(grad_flux)
             else:
                 raise KeyError(f"Unrecognized key '{key}' in gradient.")
 
@@ -1143,6 +1270,7 @@ class Optimizer:
         grad_spf = gradients[1]
         grad_psf = gradients[2] if len(gradients) > 2 else None
         grad_stellar = gradients[3] if len(gradients) > 3 else gradients[2]
+        grad_flux = gradients[4] if len(gradients) > 4 else gradients[3]
 
         grad_vector = []
 
@@ -1151,7 +1279,7 @@ class Optimizer:
         spf_idx_map = {k: i for i, k in enumerate(self.spf_params)}
         psf_idx_map = {k: i for i, k in enumerate(self.psf_params)} if (self.PSFModel != Winnie_PSF and self.PSFModel != None) else {}
 
-        use_interpolated_spf = issubclass(self.FuncModel, InterpolatedUnivariateSpline_SPF)
+        use_interpolated_spf = issubclass(self.FuncModel, Spline_SPF)
         use_winnie_psf = self.PSFModel != None and issubclass(self.PSFModel, Winnie_PSF)
 
         if self.StellarPSFModel is not None:
@@ -1169,6 +1297,8 @@ class Optimizer:
                 grad_vector.append(grad_psf[psf_idx_map[key]])
             elif self.StellarPSFModel is not None and key in self.stellar_psf_params:
                 grad_vector.extend(jnp.ravel(stellar_grad_dict[key]).tolist())  # stellar psf parameters are always arrays
+            elif key == 'flux_scaling':
+                grad_vector.append(grad_flux)
             else:
                 raise KeyError(f"Unrecognized key '{key}' in gradient conversion.")
 
