@@ -527,7 +527,7 @@ class Optimizer:
         return soln
 
     def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50,
-            resume: bool = False, scale_objective_function_for_shape=False, **kwargs):
+            resume: bool = False, scale_objective_function_for_shape=False, nconst: float = 1e-7, **kwargs):
         """
         Runs Markov Chain Monte Carlo (MCMC) sampling using an emcee-based sampler to estimate
         posterior distributions for model parameters based on the log-likelihood function. Uses
@@ -562,6 +562,13 @@ class Optimizer:
             interactive overwrite prompt in scripted or notebook contexts.
         scale_objective_function_for_shape : bool, optional
             If True, scales the log-likelihood by the number of pixels in `target_image` to normalize shape differences. Default is False.
+        nconst : float, optional
+            Perturbation scale used to initialise the walker ball around the
+            starting point.  Each walker is drawn as
+            ``initial + nconst * randn(ndim)``.  The default (1e-7) keeps
+            walkers tightly clustered; increase to ~0.05–0.1 to give the
+            ensemble meaningful spread from the start, which improves mixing
+            when the posterior is broad or multi-modal.
         **kwargs : dict
             Additional arguments passed to the underlying `MCMC_model.run()` method.
             Notable: ``confirm_overwrite=False`` suppresses the interactive prompt
@@ -628,7 +635,7 @@ class Optimizer:
             raise Exception("MCMC Initial Bounds Exception")
 
         mc_model = MCMC_model(ll, (init_lb, init_ub), self.name)
-        mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns, resume=resume, **kwargs)
+        mc_model.run(init_x, nconst=nconst, nwalkers=nwalkers, niter=niter, burn_iter=burns, resume=resume, **kwargs)
 
         mc_soln = mc_model.get_theta_median()
         param_list = self._unflatten_params(mc_soln, fit_keys, logscales, is_arrays)
@@ -797,30 +804,55 @@ class Optimizer:
         print("Misc Params: " + str(self.misc_params))
 
     def plot_spline(self, num_points=100):
-        """Plot the current spline SPF as a function of cos(phi).
+        """Plot the current spline SPF as a function of scattering angle.
+
+        The x-axis shows scattering angle in degrees (0° = forward, 180° =
+        backward). Vertical dashed lines mark the forward and backward
+        scattering-angle limits set by ``inc_bound_knots``, i.e. the range
+        actually probed by the disk given its inclination.
 
         Parameters
         ----------
         num_points : int, optional
-            Number of evaluation points along the cos(phi) axis. Default is 100.
+            Number of evaluation points across the full 0–180° range. Default is 100.
 
         Returns
         -------
         matplotlib.figure.Figure
-            Figure containing the SPF curve with knot positions marked.
+            Figure containing the SPF curve with knot positions and
+            inclination bounds marked.
         """
         fig, ax = plt.subplots()
 
-        x = np.linspace(-1, 1, num_points)
+        # Evaluate over the full angular range
+        cos_x = np.linspace(-1, 1, num_points)
+        angles_x = np.degrees(np.arccos(cos_x))   # 0°–180°, but arccos reverses order
+
         knots = InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)
         spline = InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], knots)
 
-        y = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, x)
+        y       = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, cos_x)
         y_knots = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, knots)
+        knot_angles = np.degrees(np.arccos(np.clip(knots, -1, 1)))
 
-        ax.set_title("Spline Fit")
-        ax.plot(x, y, label="Spline curve")
-        ax.scatter(knots, y_knots, color="red", label="Knots")
+        ax.plot(angles_x, y, label="Spline SPF")
+        ax.scatter(knot_angles, y_knots, color="red", zorder=5, label="Knots")
+
+        # Inclination bounds
+        fwd = float(self.spf_params.get('forwardscatt_bound', np.nan))
+        bwd = float(self.spf_params.get('backscatt_bound', np.nan))
+        if np.isfinite(fwd):
+            fwd_angle = np.degrees(np.arccos(np.clip(fwd, -1, 1)))
+            ax.axvline(fwd_angle, color='gray', linestyle='--', linewidth=1,
+                       label=f'Inc. bound ({fwd_angle:.1f}°)')
+        if np.isfinite(bwd):
+            bwd_angle = np.degrees(np.arccos(np.clip(bwd, -1, 1)))
+            ax.axvline(bwd_angle, color='gray', linestyle=':', linewidth=1,
+                       label=f'Inc. bound ({bwd_angle:.1f}°)')
+
+        ax.set_xlabel('Scattering angle (°)')
+        ax.set_ylabel('Phase function')
+        ax.set_title('Spline SPF')
         ax.legend()
 
         return fig
