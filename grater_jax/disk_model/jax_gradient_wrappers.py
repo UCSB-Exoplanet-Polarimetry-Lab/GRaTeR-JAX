@@ -38,7 +38,7 @@ def log_likelihood(image, target_image, err_map):
     """
     sigma2 = jnp.square(err_map)
     result = ((target_image - image) ** 2) / (sigma2 + 1e-40) + jnp.log(sigma2 + 1e-40)
-    return -0.5 * jnp.mean(result)
+    return -0.5 * jnp.sum(result)
 
 
 @jax.jit
