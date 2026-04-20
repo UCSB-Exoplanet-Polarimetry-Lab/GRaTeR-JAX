@@ -26,9 +26,9 @@ bibliography: paper.bib
 
 `GRaTer-JAX` is a Python package for modeling debris disks, disks of dust around stars that provide important clues about the formation, structure, and evolution of planetary systems. `GRaTer` is a debris disk modeling framework originally developed for generating and fitting models of optically thin, axisymmetric dust disks. Its name stands for Generator of Ring-like, Axisymmetric, optically Thin dust disks for Regularized fitting. JAX is a Python package for high-performance computing that implements just-in-time compilation and auto-differentiation, enabling significant speedups in forward modeling workflows.
 
-`GRaTer-JAX` delivers a more powerful, efficient, and robust debris disk modeling framework than previous tools. Its JAX-based backend provides orders-of-magnitude speedups and analytic gradients, while its intuitive and extensible API unifies forward modeling, optimization, and inference within a single workflow. Combined with key additions to its disk model, it enables more advanced debris disk modeling, enabling research that was previously impossible.
+![](GJFit.png){ width=115% }
 
-![](GJFit.png)
+`GRaTer-JAX` delivers a more powerful, efficient, and robust debris disk modeling framework than previous tools. Its JAX-based backend provides orders-of-magnitude speedups and analytic gradients, while its intuitive and extensible API unifies forward modeling, optimization, and inference within a single workflow. Combined with key additions to its disk model, it enables more advanced debris disk modeling, enabling research that was previously impossible.
 
 # Statement of Need
 
@@ -66,7 +66,7 @@ The third layer is the `Optimizer` class, which provides a unified interface for
 
 Common workflows follow the flow chart below:
 
-![](GJFlow.png)
+![](GJFlow.png){ width=115% }
 
 # Research Impact Statement
 
