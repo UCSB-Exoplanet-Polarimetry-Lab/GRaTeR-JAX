@@ -18,13 +18,15 @@ authors:
 affiliations:
   - name: University of California, Santa Barbara, Santa Barbara, CA 93106 USA
     index: 1
-date: 2026-04
+date: April 2026
 bibliography: paper.bib
 ---
 
 # Summary
 
 `GRaTer-JAX` is a Python package for modeling debris disks, disks of dust around stars that provide important clues about the formation, structure, and evolution of planetary systems. `GRaTer` is a debris disk modeling framework originally developed for generating and fitting models of optically thin, axisymmetric dust disks. Its name stands for Generator of Ring-like, Axisymmetric, optically Thin dust disks for Regularized fitting. JAX is a Python package for high-performance computing that implements just-in-time compilation and auto-differentiation, enabling significant speedups in forward modeling workflows.
+
+![](GJFit.png){ width=115% }
 
 `GRaTer-JAX` delivers a more powerful, efficient, and robust debris disk modeling framework than previous tools. Its JAX-based backend provides orders-of-magnitude speedups and analytic gradients, while its intuitive and extensible API unifies forward modeling, optimization, and inference within a single workflow. Combined with key additions to its disk model, it enables more advanced debris disk modeling, enabling research that was previously impossible.
 
@@ -40,9 +42,9 @@ For the past 25 years, the *Generalized Radial Transporter (GRaTer)* framework [
 
 Existing implementations of the `GRaTer` framework, one of the main examples being `VIP` [@GomezGonzalez2017], have made debris disk forward modeling more accessible, but they remain limited in several important ways. Historically, debris disk modeling has been substantially constrained by computation time, restricting the number of disk parameters that can be explored and reducing the flexibility of model fitting [@Esposito2020]. Prior implementations have also generally relied on a small number of rigid SPF parameterizations, limiting their ability to capture more complex or unexpected scattering behavior present in real debris disks. These limitations motivate the development of a new implementation rather than a small extension of existing tools.
 
-First, prior implementations are comparatively inefficient. Referencing benchmark tests from the SpeedComparision notebook in the `GRaTer-JAX` repository, a basic `VIP` debris disk model requires approximately 104 milliseconds to generate. While this may appear modest, it becomes burdensome in workflows that require thousands of iterations, such as model fitting and parameter exploration. `GRaTer-JAX` achieves a runtime of 2.67 milliseconds, corresponding to a 39× speedup for the same model generation without sacrificing accuracy. As model complexity increases, this speedup becomes even more pronounced.
+First, prior implementations are comparatively inefficient. Referencing benchmark tests from the SpeedComparision notebook in the `GRaTer-JAX` repository, a basic `VIP` debris disk model requires approximately 104 milliseconds to generate. While this may appear modest, it becomes burdensome in workflows that require thousands of iterations, such as model fitting and parameter exploration. `GRaTer-JAX` achieves a runtime of 2.67 milliseconds, corresponding to a 39$\times$ speedup for the same model generation without sacrificing accuracy. As model complexity increases, this speedup becomes even more pronounced.
 
-Second, existing implementations lack automatic differentiation. Without access to analytic gradients, users must rely on numerical gradients, which are both computationally expensive and less accurate. Benchmark results show that computing a numerical gradient for a `VIP` model with eight parameters requires approximately 1.71 seconds. This severely limits gradient-based fitting workflows. In contrast, `GRaTer-JAX` computes analytic gradients for a larger twelve-parameter model in 29.1 milliseconds, corresponding to a 59× speedup. As with forward modeling, these performance gains increase with model complexity.
+Second, existing implementations lack automatic differentiation. Without access to analytic gradients, users must rely on numerical gradients, which are both computationally expensive and less accurate. Benchmark results show that computing a numerical gradient for a `VIP` model with eight parameters requires approximately 1.71 seconds. This severely limits gradient-based fitting workflows. In contrast, `GRaTer-JAX` computes analytic gradients for a larger twelve-parameter model in 29.1 milliseconds, corresponding to a 59$\times$ speedup. As with forward modeling, these performance gains increase with model complexity.
 
 Third, existing tools lack built-in support for modern optimization workflows. `GRaTer-JAX` addresses this through its `Optimizer` class, which provides built-in gradient descent and Markov Chain Monte Carlo (MCMC) support. This framework also integrates useful observational components such as throughput corrections for a coronagraphic mask of the user’s choice and convolution with a point spread function (PSF). By bringing these capabilities into a unified modeling workflow, `GRaTer-JAX` makes advanced fitting procedures substantially more practical for debris disk studies.
 
@@ -54,23 +56,21 @@ All in all, `GRaTer-JAX` provides solutions to multiple existing challenges in d
 
 The software design of `GRaTer-JAX` was guided by a central trade-off: exposing the full flexibility and performance of JAX while providing an interface that is practical for astronomers using debris disk models in real research workflows. A purely low-level JAX interface would maximize flexibility, but it would also require users to manually assemble model components, manage parameter transformations, and understand JAX-specific implementation details. While powerful, that approach would create a substantial usability barrier for researchers whose primary goal is scientific modeling rather than software engineering. On the other hand, a highly simplified interface could make common workflows easier, but at the cost of limiting extensibility and making it difficult to support more advanced models. `GRaTer-JAX` was therefore designed as a layered system that balances performance, usability, and extensibility.
 
-Common workflows follow the flow chart below:
-
-![Common workflows in GRaTer-JAX](GJflow.png)
-
 The first layer consists of the low-level JAX-based modeling components. This layer includes the core disk generation routines, scattered light disk class, scattering phase function (SPF) models, and point spread function (PSF) handling. These components are implemented in a way that is compatible with JAX transformations such as just-in-time compilation, vectorization, and automatic differentiation. A key design decision here was to have a base JAX class to represent model components as structured classes while also supporting flattening and unflattening to JAX arrays. This enables complex object-based models to remain differentiable and optimizable within the JAX ecosystem. The advantage of this approach is that it preserves both modularity and computational efficiency. Researchers can now easily swap in different physical components without breaking JAX optimized calculations and gradient-based workflows.
 
-However, exposing only this layer to users would have made the package difficult to use. Disk models involve many interacting components, and requiring users to manually assemble them would make routine fitting cumbersome and error-prone. To address this, `GRaTer-JAX` introduces a second layer of objective functions, including `objective_model`, `objective_fit`, `objective_grad`, and `objective_fit_grad`. These functions abstract the model internals by taking model choices and parameter values as input, selecting the correct JAX routines, and returning the corresponding model image, fit statistic, or gradient. This layer slightly constrains direct access to the internals, but in return it greatly simplifies usage and reduces mistakes in model construction.
+However, exposing only this layer to users would have made the package difficult to use. Disk models involve many interacting components, and requiring users to manually assemble them would make routine fitting cumbersome and error-prone. To address this, `GRaTer-JAX` introduces a second layer of objective functions: `objective_model`, `objective_fit`, `objective_grad`, and `objective_fit_grad`. These functions abstract the model internals by taking model choices and parameter values as input, selecting the correct JAX routines, and returning the corresponding model image, fit statistic, or gradient. This layer slightly constrains direct access to the internals, but in return it greatly simplifies usage and reduces mistakes in model construction.
 
 The third layer is the `Optimizer` class, which provides a unified interface for parameter estimation and inference. In debris disk modeling, forward modeling alone is rarely sufficient; researchers also need optimization, sampling, and instrumental corrections. By integrating gradient descent and Markov Chain Monte Carlo (MCMC) into the same framework, `GRaTer-JAX` allows the same model definitions to be used consistently across forward modeling, optimization, and Bayesian inference. This reduces duplicated code and improves reproducibility. The optimizer also includes research-specific operations such as coronagraphic throughput corrections and PSF convolution, which are necessary for comparing physical models to real observations.
 
 `GRaTer-JAX`'s layered architecture is key because debris disk modeling is both computationally expensive and scientifically iterative. Researchers often move from simple forward models to more advanced fitting and inference. The low-level JAX layer provides speed and differentiability, the objective-function layer improves usability, and the optimizer layer connects the framework to real observational analysis. Together, these choices make the software efficient, flexible, and practical for research use. For further information, review the documentation, [GRaTer-JAX Documentation](https://grater-jax.readthedocs.io).
 
+Common workflows follow the flow chart below:
+
+![](GJFlow.png){ width=115% }
+
 # Research Impact Statement
 
-`GRaTer-JAX`'s improved speedups, as described before, enables large scale precise parameter fitting. This allows more robust disk model fitting that includes new parameters such as splines enabling more in depth research.
-
-These powerful debris disk models are significant because they let researchers deeper understand the evolutions of solar systems. When models are more powerful, researchers can avoid having to make fixed assumptions, and can obtain more novel and trustworthy results for individual disks. These, in turn, help us better understand how debris disks evolve, what their compositions are like, and whether unseen planets may be shaping them.
+`GRaTer-JAX`'s improved speedups and additions, as described before, enable large scale precise parameter fitting. This allows more robust disk model fitting that includes new parameters such as splines, enabling more in depth research. When models are more powerful, researchers can avoid having to make fixed assumptions, and can obtain more novel and trustworthy results for individual disks. These, in turn, help us better understand how debris disks evolve, what their compositions are like, and whether unseen planets may be shaping them.
 
 This potential for more powerful models has already been realized in a recent ongoing paper, **GPU-Enabled Debris Disk Modeling with GRaTer-JAX I: A Uniform Analysis of Gemini Planet Imager H-band Polarimetric Data** `GRaTer-JAX` is being used as the primary modeling engine in the paper's analysis of Gemini Planet Imager *H*-band polarimetric debris disk observations. In that work, it is used to forward-model the disk images, fit twelve or more debris disk parameters together with spline-based scattering phase functions, and sample posterior distributions with MCMC across a large target sample.
 
@@ -88,7 +88,7 @@ Looking ahead, continued advances in AI tools will further increase the utility 
 
 This material is based upon work supported by:
 
-National Science Foundation Astronomy & Astrophysics Postdoctoral Fellowship Award No. 2401654 for author BLL. Any opinions, findings, and conclusions or recommendations expressed in this material are those of the authors(s) and do not necessarily reflect the views of the National Science Foundation.
+National Science Foundation Astronomy \& Astrophysics Postdoctoral Fellowship Award No. 2401654 for author BLL. Any opinions, findings, and conclusions or recommendations expressed in this material are those of the authors(s) and do not necessarily reflect the views of the National Science Foundation.
 
 NASA Hubble Fellowship grant HST-HF2-51547.001-A awarded by the Space Telescope Science Institute for author J.N.A, which is operated by the Association of Universities for Research in Astronomy.
 
