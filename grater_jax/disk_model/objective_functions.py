@@ -213,7 +213,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
 
 def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
-                       throughput = None, **kwargs):
+                       throughput = None, ll_method = 'sum', **kwargs):
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
     stellar psf point spread function, and misceallaneous parameters along with the target image and error map.
@@ -273,11 +273,18 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
     result = safe_diff ** 2 / safe_sigma2 + jnp.log(safe_sigma2)
     result = jnp.where(valid, result, 0.0)
 
-    return -0.5 * jnp.sum(result)  # / jnp.size(target_image)
+    if ll_method == 'sum':
+        reduced = jnp.sum(result)
+    elif ll_method == 'mean':
+        reduced = jnp.mean(result)
+    else:
+        raise ValueError(f"ll_method must be 'sum' or 'mean', got {ll_method!r}")
+    return -0.5 * reduced
 
 def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
-                       throughput = None, stellar_psf_params = None, StellarPSFModel = None, **kwargs):
+                       throughput = None, stellar_psf_params = None, StellarPSFModel = None,
+                       ll_method = 'sum', **kwargs):
     """
     Same as the objective_ll function but accepts replacement values for the given parameters in fit_keys.
     This is ideal for fitting as it provides a clean objective function for a given set of parameters.
@@ -410,13 +417,13 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             flux_scaling=temp_misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
         )
 
-    return log_likelihood(model_image, target_image, err_map)
+    return log_likelihood(model_image, target_image, err_map, ll_method=ll_method)
 
 
 def objective_grad(disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
                        throughput = None, stellar_psf_params = None, StellarPSFModel = None,
-                        **kwargs):
+                       ll_method = 'sum', **kwargs):
     """
     Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
     disk, scattering function, point spread function, stellar psf point spread function, and misceallaneous parameters
@@ -485,7 +492,8 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             target_image, err_map, throughput,
             misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
-            nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices']
+            nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            ll_method=ll_method
         )
     elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
         gradients = jax_model_winnie_grad(
@@ -496,7 +504,8 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             target_image, err_map, throughput,
             misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
-            nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices']
+            nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            ll_method=ll_method
         )
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
 
@@ -510,7 +519,8 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            knots=FuncModel.get_knots(spf_params)
+            knots=FuncModel.get_knots(spf_params),
+            ll_method=ll_method
         )
     else:
         gradients = jax_model_spline_winnie_grad(
@@ -522,14 +532,15 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            knots=FuncModel.get_knots(spf_params)
+            knots=FuncModel.get_knots(spf_params),
+            ll_method=ll_method
         )
 
     return gradients
 
 def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map, throughput = None,
-                       stellar_psf_params = None, StellarPSFModel = None, **kwargs):
+                       stellar_psf_params = None, StellarPSFModel = None, ll_method = 'sum', **kwargs):
     """
     Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
     disk, scattering function, point spread function, stellar psf point spread function, and misceallaneous parameters
@@ -629,7 +640,8 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             target_image, err_map, throughput,
             temp_misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
-            nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices']
+            nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            ll_method=ll_method
         )
     elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
         gradients = jax_model_winnie_grad(
@@ -640,7 +652,8 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             target_image, err_map, throughput,
             temp_misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
-            nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices']
+            nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
+            ll_method=ll_method
         )
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
 
@@ -654,7 +667,8 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             temp_misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            knots=FuncModel.get_knots(temp_spf_params)
+            knots=FuncModel.get_knots(temp_spf_params),
+            ll_method=ll_method
         )
     else:
         gradients = jax_model_spline_winnie_grad(
@@ -666,7 +680,8 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             temp_misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            knots=FuncModel.get_knots(temp_spf_params)
+            knots=FuncModel.get_knots(temp_spf_params),
+            ll_method=ll_method
         )
 
     return gradients

@@ -17,8 +17,11 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-@jax.jit
-def log_likelihood(image, target_image, err_map):
+from functools import partial
+
+
+@partial(jax.jit, static_argnames=('ll_method',))
+def log_likelihood(image, target_image, err_map, ll_method='sum'):
     """
     Compute the Gaussian log-likelihood between a model image and observed data.
 
@@ -30,15 +33,34 @@ def log_likelihood(image, target_image, err_map):
         Observed image of the same shape as `image`.
     err_map : jnp.ndarray
         Per-pixel standard deviation (noise map); same shape as `image`.
+    ll_method : {'sum', 'mean'}, optional
+        How to reduce the per-pixel Gaussian log-density terms across the image.
+        ``'sum'`` (default) returns the total log-likelihood — the statistically
+        correct choice for MCMC, since log-posterior ratios depend on absolute
+        values. ``'mean'`` divides by ``jnp.size(image)`` and returns the
+        per-pixel average — sometimes preferred for scipy gradient-based
+        optimisation because the smaller magnitude keeps the L-BFGS-B ``ftol``
+        convergence criterion from tripping prematurely on large images.
 
     Returns
     -------
     float
-        The total log-likelihood assuming independent Gaussian errors.
+        The reduced log-likelihood assuming independent Gaussian errors.
+
+    Raises
+    ------
+    ValueError
+        If ``ll_method`` is not ``'sum'`` or ``'mean'``.
     """
     sigma2 = jnp.square(err_map)
     result = ((target_image - image) ** 2) / (sigma2 + 1e-40) + jnp.log(sigma2 + 1e-40)
-    return -0.5 * jnp.sum(result)
+    if ll_method == 'sum':
+        reduced = jnp.sum(result)
+    elif ll_method == 'mean':
+        reduced = jnp.mean(result)
+    else:
+        raise ValueError(f"ll_method must be 'sum' or 'mean', got {ll_method!r}")
+    return -0.5 * reduced
 
 
 @jax.jit
@@ -65,7 +87,7 @@ def residuals(image, target_image, err_map):
     return result
 
 def jax_model_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
-              throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25):
+              throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, ll_method = 'sum'):
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
     stellar psf point spread function, and misceallaneous parameters along with the target image and error map. This
@@ -160,10 +182,10 @@ def jax_model_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, di
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
-    return log_likelihood(scattered_light_image*throughput, target_image, err_map)
+    return log_likelihood(scattered_light_image*throughput, target_image, err_map, ll_method=ll_method)
 
 def jax_model_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
-                     throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25):
+                     throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, ll_method = 'sum'):
 
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
@@ -255,11 +277,15 @@ def jax_model_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSF
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
-    return log_likelihood(scattered_light_image*throughput, target_image, err_map)
+    return log_likelihood(scattered_light_image*throughput, target_image, err_map, ll_method=ll_method)
 
 def jax_model_spline_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
                      throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
+<<<<<<< HEAD
                      knots=np.linspace(1,-1,7)):
+=======
+                     knots=jnp.linspace(1,-1,7), ll_method = 'sum'):
+>>>>>>> 89a7149 (feat(likelihood): add ll_method kwarg for sum/mean reduction)
 
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
@@ -357,11 +383,15 @@ def jax_model_spline_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFMo
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
-    return log_likelihood(scattered_light_image*throughput, target_image, err_map)
+    return log_likelihood(scattered_light_image*throughput, target_image, err_map, ll_method=ll_method)
 
 def jax_model_spline_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
                      throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
+<<<<<<< HEAD
                      knots=np.linspace(1,-1,7)):
+=======
+                     knots=jnp.linspace(1,-1,7), ll_method = 'sum'):
+>>>>>>> 89a7149 (feat(likelihood): add ll_method kwarg for sum/mean reduction)
 
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
@@ -455,7 +485,7 @@ def jax_model_spline_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, Ste
     if StellarPSFModel != None:
         scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
 
-    return log_likelihood(scattered_light_image*throughput, target_image, err_map)
+    return log_likelihood(scattered_light_image*throughput, target_image, err_map, ll_method=ll_method)
 
 # JAX GRADS (comment out whatever grad functions you don't need to save gpu memory)
 
@@ -470,16 +500,16 @@ For disk_params, spf_params, psf_params, and stellar_psf_params each flattened i
 
 jax_model_grad = jax.jit(jax.grad(jax_model_ll, argnums=(5, 6, 7, 8, 12)),
                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
+                                                 'nx', 'ny', 'halfNbSlices', 'll_method'])
 
 jax_model_winnie_grad = jax.jit(jax.grad(jax_model_winnie_ll, argnums=(5, 6, 7, 11)),
                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
+                                                 'nx', 'ny', 'halfNbSlices', 'll_method'])
 
 jax_model_spline_grad = jax.jit(jax.grad(jax_model_spline_ll, argnums=(5, 6, 7, 8, 12)),
                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
+                                                 'nx', 'ny', 'halfNbSlices', 'll_method'])
 
 jax_model_spline_winnie_grad = jax.jit(jax.grad(jax_model_spline_winnie_ll, argnums=(5, 6, 7, 11)),
                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices'])
+                                                 'nx', 'ny', 'halfNbSlices', 'll_method'])
