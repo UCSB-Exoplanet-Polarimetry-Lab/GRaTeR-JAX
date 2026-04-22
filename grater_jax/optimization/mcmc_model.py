@@ -24,6 +24,43 @@ import emcee
 import corner
 import matplotlib.pyplot as plt
 
+
+def _robust_corner_ranges(samples, lo=0.5, hi=99.5, pad=0.05):
+    """Robust per-column (lo, hi) ranges for ``corner.corner``.
+
+    Returns axis bounds derived from the ``lo``/``hi`` percentiles of each
+    column, padded symmetrically by ``pad * span``. Degenerate columns (where
+    the percentile window collapses to zero) fall back to a tiny symmetric
+    window around the median so ``corner`` does not crash.
+
+    Parameters
+    ----------
+    samples : np.ndarray
+        2D array of shape (n_samples, n_dim).
+    lo, hi : float
+        Low/high percentiles in [0, 100]. Defaults trim ~1% of outliers.
+    pad : float
+        Fractional padding added to each side of the window.
+
+    Returns
+    -------
+    list of tuple
+        Length ``n_dim`` list of (lo, hi) axis bounds.
+    """
+    samples = np.asarray(samples)
+    p_lo = np.percentile(samples, lo, axis=0)
+    p_hi = np.percentile(samples, hi, axis=0)
+    span = p_hi - p_lo
+    tiny = span <= 0
+    if np.any(tiny):
+        med = np.median(samples, axis=0)
+        eps = np.where(np.abs(med) > 0, np.abs(med) * 1e-6, 1e-6)
+        p_lo = np.where(tiny, med - eps, p_lo)
+        p_hi = np.where(tiny, med + eps, p_hi)
+        span = p_hi - p_lo
+    return list(zip(p_lo - pad * span, p_hi + pad * span))
+
+
 class MCMC_model():
     """
     Markov Chain Monte Carlo (MCMC) wrapper for emcee sampler with tools for
@@ -240,26 +277,53 @@ class MCMC_model():
         max_idx = np.argmax(flatlnprob)
         return self._get_flatchain(scaled)[max_idx]
 
-    def show_corner_plot(self, labels, truths=None, show_titles=True, plot_datapoints=True, quantiles=[0.16, 0.5, 0.84], quiet=False, scaled=False):
+    def show_corner_plot(
+        self,
+        labels,
+        truths=None,
+        show_titles=True,
+        plot_datapoints=True,
+        quantiles=[0.16, 0.5, 0.84],
+        quiet=False,
+        scaled=False,
+        range='auto',
+        range_percentiles=(0.5, 99.5),
+        range_pad=0.05,
+    ):
         """
         Generate corner plot using posterior samples.
+
+        By default the per-axis range is clipped to a robust percentile window
+        (``range_percentiles``) with ``range_pad`` symmetric padding so a few
+        straggling walkers cannot stretch the axes and hide the core of the
+        posterior. Pass ``range=None`` to restore corner's default (full extent)
+        or pass an explicit list of (lo, hi) tuples to override.
 
         Parameters
         ----------
         labels : list of str
-            List of parameter names for plot axes.
+            Parameter names for plot axes.
         truths : array-like, optional
-            True values to show as vertical lines.
+            True values to overlay as lines.
         show_titles : bool, optional
-            If True, show titles with stats above plots.
+            Show per-parameter title with summary stats.
         plot_datapoints : bool, optional
-            If True, show individual data points.
+            Draw individual sample points.
         quantiles : list of float, optional
-            Quantiles to show on plot.
+            Quantiles to mark on each 1D panel.
         quiet : bool, optional
-            Suppress text output.
+            Suppress corner's stdout output.
         scaled : bool, optional
-            If True, use scaled parameter samples.
+            Use scaled (log-transformed) samples instead of physical values.
+        range : {'auto', None} or list of tuple, optional
+            Per-axis range passed to ``corner.corner``. ``'auto'`` (default)
+            uses the robust percentile window described above; ``None``
+            disables cropping; a list of (lo, hi) tuples is passed through.
+        range_percentiles : tuple of float, optional
+            Low/high percentiles (0–100) used when ``range='auto'``. Defaults
+            to (0.5, 99.5) which trims the ~1% outlier tails.
+        range_pad : float, optional
+            Fractional padding applied to the auto window (default 5%).
 
         Returns
         -------
@@ -267,7 +331,23 @@ class MCMC_model():
             The corner plot figure.
         """
         flatchain = self._get_flatchain(scaled)
-        return corner.corner(flatchain, truths=truths, show_titles=show_titles, labels=labels, plot_datapoints=plot_datapoints, quantiles=quantiles, quiet=quiet)
+        if isinstance(range, str) and range == 'auto':
+            range = _robust_corner_ranges(
+                flatchain,
+                lo=range_percentiles[0],
+                hi=range_percentiles[1],
+                pad=range_pad,
+            )
+        return corner.corner(
+            flatchain,
+            truths=truths,
+            show_titles=show_titles,
+            labels=labels,
+            plot_datapoints=plot_datapoints,
+            quantiles=quantiles,
+            quiet=quiet,
+            range=range,
+        )
 
     def plot_chains(self, labels, cols_per_row=3, scaled=False):
         """

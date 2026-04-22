@@ -423,8 +423,8 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         remaining ``num_knots`` positions are split evenly on either side.
         """
         n = p_dict['num_knots']
-        n_left = n // 2
-        n_right = n - n_left
+        n_right = n // 2
+        n_left = n - n_right
         left = jnp.linspace(p_dict['forwardscatt_bound'], 0.0, n_left + 1)[:-1]
         right = jnp.linspace(0.0, p_dict['backscatt_bound'], n_right + 1)[1:]
         return jnp.concatenate([left, jnp.array([0.0]), right])

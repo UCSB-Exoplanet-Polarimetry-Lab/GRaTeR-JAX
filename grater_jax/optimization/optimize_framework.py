@@ -159,8 +159,10 @@ class Optimizer:
         ValueError
             If the shape of the throughput image does not match the specified image dimensions in misc_params.
         """
-        if jnp.shape(throughput) != (self.misc_params['ny'], self.misc_params['nx']):
+        throughput = np.asarray(throughput)
+        if throughput.shape != (self.misc_params['ny'], self.misc_params['nx']):
             raise ValueError("Throughput image shape does not match the specified image dimensions in misc_params.")
+        throughput = np.array(throughput, dtype=np.float32, copy=True)
         self.throughput = jnp.array(throughput)
 
     def get_model(self):
@@ -179,7 +181,7 @@ class Optimizer:
             throughput=self.throughput, **self.kwargs
         )
     
-    def get_objective_likelihood(self, params_fit, fit_keys, target_image, err_map):
+    def get_objective_likelihood(self, params_fit, fit_keys, target_image, err_map, ll_method='sum'):
         """
         Returns the log likelihood of the disk model as per the given parameters, target image, and error map.
 
@@ -193,6 +195,12 @@ class Optimizer:
             Target image that the log likelihood is being computed with.
         err_map: numpy.ndarray
             Error map of same shape as target image that the log likelihood is being computed with.
+        ll_method : {'sum', 'mean'}, optional
+            Reduction used inside the Gaussian log-likelihood. ``'sum'`` (default)
+            returns the total log-likelihood — the statistically correct choice
+            for MCMC. ``'mean'`` divides by ``jnp.size(image)`` and is sometimes
+            preferred for L-BFGS-B (its ``ftol`` criterion triggers prematurely
+            on the larger-magnitude sum).
 
         Returns:
         --------
@@ -204,7 +212,7 @@ class Optimizer:
             params_fit, fit_keys, self.disk_params, self.spf_params, self.psf_params, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
             stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
-            throughput = self.throughput, **self.kwargs
+            throughput = self.throughput, ll_method=ll_method, **self.kwargs
         )
     
     def get_gradient(self, keys, target_image, err_map):
@@ -228,7 +236,7 @@ class Optimizer:
         """
         return self._convert_raw_gradient_output_to_readable_output(keys, self._get_raw_gradient(target_image, err_map))
     
-    def get_objective_gradient(self, params_fit, fit_keys, target_image, err_map):
+    def get_objective_gradient(self, params_fit, fit_keys, target_image, err_map, ll_method='sum'):
         """
         Objective function for returning the gradient of the disk model for the given target image and error map for
         the log likelihood. Takes in a list of parameters and their new values and outputs their gradients. Note:
@@ -253,7 +261,7 @@ class Optimizer:
         return self._convert_raw_gradient_output_to_1d_array(fit_keys, objective_fit_grad(params_fit, fit_keys, self.disk_params,
             self.spf_params, self.psf_params, self.misc_params, self.DiskModel, self.DistrModel, self.FuncModel,
             self.PSFModel, target_image, err_map, stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
-            throughput=self.throughput, **self.kwargs
+            throughput=self.throughput, ll_method=ll_method, **self.kwargs
         ))
     
     def get_disk(self):
@@ -306,7 +314,7 @@ class Optimizer:
 
         return values
 
-    def log_likelihood_pos(self, target_image, err_map):
+    def log_likelihood_pos(self, target_image, err_map, ll_method='sum'):
         """
         Returns the negative log-likelihood of the current model compared to the target image.
 
@@ -314,18 +322,19 @@ class Optimizer:
         ----------
         target_image : numpy.ndarray
             2D array representing the target image.
-
         err_map : numpy.ndarray
             2D array of the same shape as target_image, representing the error map.
+        ll_method : {'sum', 'mean'}, optional
+            Reduction used inside the log-likelihood. See ``log_likelihood``.
 
         Returns
         -------
         float
             Negative log-likelihood of the model with respect to the given image and error map.
         """
-        return -log_likelihood(self.get_model(), target_image, err_map)
+        return -log_likelihood(self.get_model(), target_image, err_map, ll_method=ll_method)
 
-    def log_likelihood(self, target_image, err_map):
+    def log_likelihood(self, target_image, err_map, ll_method='sum'):
         """
         Returns the log-likelihood of the current model compared to the target image.
 
@@ -333,16 +342,17 @@ class Optimizer:
         ----------
         target_image : numpy.ndarray
             2D array representing the target image.
-
         err_map : numpy.ndarray
             2D array of the same shape as target_image, representing the error map.
+        ll_method : {'sum', 'mean'}, optional
+            Reduction used inside the log-likelihood. See ``log_likelihood``.
 
         Returns
         -------
         float
             Log-likelihood of the model with respect to the given image and error map.
         """
-        return log_likelihood(self.get_model(), target_image, err_map)
+        return log_likelihood(self.get_model(), target_image, err_map, ll_method=ll_method)
     
     def define_reference_images(self, reference_images):
         """
@@ -357,7 +367,7 @@ class Optimizer:
 
     def scipy_optimize(self, fit_keys, logscaled_params, array_params, target_image, err_map,
                        disp_soln=False, iters=500, method=None, use_grad = False, scale = 1.,
-                       ftol=1e-40, gtol=1e-40, eps=1e-40, **kwargs): 
+                       ftol=1e-40, gtol=1e-40, eps=1e-40, ll_method='mean', **kwargs):
         """
         Runs unconstrained optimization using SciPy's `minimize` on the specified parameters to maximize the log-likelihood.
         Uses current parameter dictionary values.
@@ -390,6 +400,9 @@ class Optimizer:
             Tolerance for the norm of the projected gradient. Default is 1e-40.
         eps : float, optional
             Step size used for numerical approximation of the Jacobian (if `use_grad` is False). Default is 1e-40.
+        ll_method : {'mean', 'sum'}, optional
+            Reduction used inside the Gaussian log-likelihood. Default ``'mean'``
+            (per-pixel average); see ``scipy_bounded_optimize`` for rationale.
         **kwargs : dict
             Additional keyword arguments (currently unused).
 
@@ -400,20 +413,20 @@ class Optimizer:
         """
 
         self._set_size_to_target_image(target_image)
-        
+
         logscales = self._highlight_selected_params(fit_keys, logscaled_params)
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
         ll = lambda x: -self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
-                                       target_image, err_map) / scale
-        
+                                       target_image, err_map, ll_method=ll_method) / scale
+
         ll_grad = lambda x: -self.get_objective_gradient(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
                                     self.disk_params, self.spf_params, self.psf_params, self.stellar_psf_params, self.misc_params,
                                     self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel, self.StellarPSFModel,
                                     target_image, err_map) / scale
-        
+
         ll_grad = lambda x: self._adjust_gradient_for_logscales( -self.get_objective_gradient(self._unflatten_params(x, fit_keys,
-                                logscales, is_arrays), fit_keys, target_image, err_map) / scale, fit_keys, logscales, is_arrays, x)
+                                logscales, is_arrays), fit_keys, target_image, err_map, ll_method=ll_method) / scale, fit_keys, logscales, is_arrays, x)
         
         jac = ll_grad if use_grad else None
         
@@ -434,7 +447,7 @@ class Optimizer:
     
     def scipy_bounded_optimize(self, fit_keys, fit_bounds, logscaled_params, array_params, target_image, err_map,
                        disp_soln=False, iters=500, ftol=1e-12, gtol=1e-12, eps=1e-8, scale = 1.,
-                       use_grad=False, maxls=20, **kwargs):
+                       use_grad=False, maxls=20, ll_method='mean', **kwargs):
         """
         Runs bounded optimization using SciPy's `minimize` with the L-BFGS-B algorithm to maximize the log-likelihood.
         Uses current parameter dictionary values.
@@ -470,6 +483,11 @@ class Optimizer:
         maxls : int, optional
             Maximum number of line search steps per iteration for L-BFGS-B. Default is 20 (scipy default).
             Increase (e.g. to 50–100) when ABNORMAL_TERMINATION_IN_LNSRCH is reported at low iteration counts.
+        ll_method : {'mean', 'sum'}, optional
+            Reduction used inside the Gaussian log-likelihood. Default ``'mean'``
+            (per-pixel average) because L-BFGS-B's ``ftol`` criterion can trip
+            prematurely on the larger-magnitude ``'sum'``. Use ``'sum'`` if you
+            want the raw total log-likelihood value reported.
         **kwargs : dict
             Additional keyword arguments (currently unused).
 
@@ -485,10 +503,10 @@ class Optimizer:
         is_arrays = self._highlight_selected_params(fit_keys, array_params)
 
         ll = lambda x: -self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
-                                       target_image, err_map) / scale
-        
+                                       target_image, err_map, ll_method=ll_method) / scale
+
         ll_grad = lambda x: self._adjust_gradient_for_logscales( -self.get_objective_gradient(self._unflatten_params(x, fit_keys,
-                                logscales, is_arrays), fit_keys, target_image, err_map) / scale, fit_keys, logscales, is_arrays, x)
+                                logscales, is_arrays), fit_keys, target_image, err_map, ll_method=ll_method) / scale, fit_keys, logscales, is_arrays, x)
         
         jac = ll_grad if use_grad else None
         
@@ -527,7 +545,8 @@ class Optimizer:
         return soln
 
     def mcmc(self, fit_keys, logscaled_params, array_params, target_image, err_map, BOUNDS, nwalkers=250, niter=250, burns=50,
-            resume: bool = False, scale_objective_function_for_shape=False, **kwargs):
+            resume: bool = False, scale_objective_function_for_shape=False, nconst: float = 1e-7,
+            ll_method='sum', **kwargs):
         """
         Runs Markov Chain Monte Carlo (MCMC) sampling using an emcee-based sampler to estimate
         posterior distributions for model parameters based on the log-likelihood function. Uses
@@ -562,6 +581,19 @@ class Optimizer:
             interactive overwrite prompt in scripted or notebook contexts.
         scale_objective_function_for_shape : bool, optional
             If True, scales the log-likelihood by the number of pixels in `target_image` to normalize shape differences. Default is False.
+        nconst : float, optional
+            Perturbation scale used to initialise the walker ball around the
+            starting point.  Each walker is drawn as
+            ``initial + nconst * randn(ndim)``.  The default (1e-7) keeps
+            walkers tightly clustered; increase to ~0.05–0.1 to give the
+            ensemble meaningful spread from the start, which improves mixing
+            when the posterior is broad or multi-modal.
+        ll_method : {'sum', 'mean'}, optional
+            Reduction used inside the Gaussian log-likelihood. Default
+            ``'sum'`` — the statistically correct choice for MCMC, since
+            log-posterior ratios depend on absolute values. ``'mean'`` flattens
+            the likelihood surface by ``1/N_pixels`` and causes walkers to
+            wander the full prior volume (observed bug before commit 6bc82f9).
         **kwargs : dict
             Additional arguments passed to the underlying `MCMC_model.run()` method.
             Notable: ``confirm_overwrite=False`` suppresses the interactive prompt
@@ -586,7 +618,7 @@ class Optimizer:
         scale = jnp.size(target_image) if scale_objective_function_for_shape else 1.
         
         ll = lambda x: self.get_objective_likelihood(self._unflatten_params(x, fit_keys, logscales, is_arrays), fit_keys,
-                                     target_image, err_map)
+                                     target_image, err_map, ll_method=ll_method)
         
         init_x = self._flatten_params(fit_keys, logscales, is_arrays)
 
@@ -628,7 +660,7 @@ class Optimizer:
             raise Exception("MCMC Initial Bounds Exception")
 
         mc_model = MCMC_model(ll, (init_lb, init_ub), self.name)
-        mc_model.run(init_x, nconst=1e-7, nwalkers=nwalkers, niter=niter, burn_iter=burns, resume=resume, **kwargs)
+        mc_model.run(init_x, nconst=nconst, nwalkers=nwalkers, niter=niter, burn_iter=burns, resume=resume, **kwargs)
 
         mc_soln = mc_model.get_theta_median()
         param_list = self._unflatten_params(mc_soln, fit_keys, logscales, is_arrays)
@@ -797,30 +829,55 @@ class Optimizer:
         print("Misc Params: " + str(self.misc_params))
 
     def plot_spline(self, num_points=100):
-        """Plot the current spline SPF as a function of cos(phi).
+        """Plot the current spline SPF as a function of scattering angle.
+
+        The x-axis shows scattering angle in degrees (0° = forward, 180° =
+        backward). Vertical dashed lines mark the forward and backward
+        scattering-angle limits set by ``inc_bound_knots``, i.e. the range
+        actually probed by the disk given its inclination.
 
         Parameters
         ----------
         num_points : int, optional
-            Number of evaluation points along the cos(phi) axis. Default is 100.
+            Number of evaluation points across the full 0–180° range. Default is 100.
 
         Returns
         -------
         matplotlib.figure.Figure
-            Figure containing the SPF curve with knot positions marked.
+            Figure containing the SPF curve with knot positions and
+            inclination bounds marked.
         """
         fig, ax = plt.subplots()
 
-        x = np.linspace(-1, 1, num_points)
+        # Evaluate over the full angular range
+        cos_x = np.linspace(-1, 1, num_points)
+        angles_x = np.degrees(np.arccos(cos_x))   # 0°–180°, but arccos reverses order
+
         knots = InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params)
         spline = InterpolatedUnivariateSpline_SPF.init(self.spf_params['knot_values'], knots)
 
-        y = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, x)
+        y       = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, cos_x)
         y_knots = InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(spline, knots)
+        knot_angles = np.degrees(np.arccos(np.clip(knots, -1, 1)))
 
-        ax.set_title("Spline Fit")
-        ax.plot(x, y, label="Spline curve")
-        ax.scatter(knots, y_knots, color="red", label="Knots")
+        ax.plot(angles_x, y, label="Spline SPF")
+        ax.scatter(knot_angles, y_knots, color="red", zorder=5, label="Knots")
+
+        # Inclination bounds
+        fwd = float(self.spf_params.get('forwardscatt_bound', np.nan))
+        bwd = float(self.spf_params.get('backscatt_bound', np.nan))
+        if np.isfinite(fwd):
+            fwd_angle = np.degrees(np.arccos(np.clip(fwd, -1, 1)))
+            ax.axvline(fwd_angle, color='gray', linestyle='--', linewidth=1,
+                       label=f'Inc. bound ({fwd_angle:.1f}°)')
+        if np.isfinite(bwd):
+            bwd_angle = np.degrees(np.arccos(np.clip(bwd, -1, 1)))
+            ax.axvline(bwd_angle, color='gray', linestyle=':', linewidth=1,
+                       label=f'Inc. bound ({bwd_angle:.1f}°)')
+
+        ax.set_xlabel('Scattering angle (°)')
+        ax.set_ylabel('Phase function')
+        ax.set_title('Spline SPF')
         ax.legend()
 
         return fig
