@@ -159,8 +159,10 @@ class Optimizer:
         ValueError
             If the shape of the throughput image does not match the specified image dimensions in misc_params.
         """
-        if jnp.shape(throughput) != (self.misc_params['ny'], self.misc_params['nx']):
+        throughput = np.asarray(throughput)
+        if throughput.shape != (self.misc_params['ny'], self.misc_params['nx']):
             raise ValueError("Throughput image shape does not match the specified image dimensions in misc_params.")
+        throughput = np.array(throughput, dtype=np.float32, copy=True)
         self.throughput = jnp.array(throughput)
 
     def get_model(self):
