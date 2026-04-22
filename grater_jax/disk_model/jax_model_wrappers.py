@@ -213,7 +213,7 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
 def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, throughput,
                      distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
-                     knots=np.linspace(1,-1,7)):
+                     knots=np.delete(np.linspace(1,-1,5), 2)):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
@@ -315,7 +315,7 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
 @partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
 def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, throughput,
                      distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
-                     flux_scaling = 1e6, knots=np.linspace(1,-1,7)):
+                     flux_scaling = 1e6, knots=np.delete(np.linspace(1,-1,5), 2)):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
