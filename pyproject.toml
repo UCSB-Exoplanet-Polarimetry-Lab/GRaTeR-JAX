@@ -4,11 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "grater-jax"
-version = "0.3.0"
+version = "0.3.1"
 description = "JAX-powered machine learning and modeling framework for GRaTeR disks."
 authors = [
     { name = "Mihir Kondapalli", email = "mihir.kondapalli@gmail.com" },
-    { name = "Briley Lewis", email = "brileylewis@g.ucla.edu" }
+    { name = "Briley Lewis", email = "brileylewis@g.ucla.edu" },
+    { name = "Jaren Ashcraft", email = "jarenashcraft@ucsb.edu" },
+    { name = "Maxwell Millar-Blanchaer", email = "maxmb@ucsb.edu" }
 ]
 license = { text = "MIT" }
 readme = "README.md"
