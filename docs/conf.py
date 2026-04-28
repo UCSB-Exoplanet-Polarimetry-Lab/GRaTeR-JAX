@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # -- Project information -----------------------------------------------------
 project = 'GRaTeR-JAX'
 author = 'GRaTeR-JAX authors'
-release = '0.1.0'
+release = '0.3.1'
 
 # -- General configuration ---------------------------------------------------
 extensions = [
