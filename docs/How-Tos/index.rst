@@ -1,4 +1,4 @@
-Explanations
+How-Tos
 =========
 
 .. toctree::
