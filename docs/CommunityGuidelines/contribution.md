@@ -35,7 +35,7 @@ If you wish to report unacceptable behavior or a violation of the code of conduc
 Violations of the code of conduct are under a two-strike policy:
 
 1. First violation: a warning will be issued along with a reminder to review the code of conduct.
-2. Second violation: the participant will be blocked from the Katsu repository.
+2. Second violation: the participant will be blocked from the GRaTer-JAX repository.
 
 # Attribution
 
