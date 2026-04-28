@@ -1,4 +1,4 @@
-Getting Started
+Explanations
 =====
 
 .. toctree::
