@@ -91,11 +91,10 @@ GRaTeR-JAX is organized around a **clean separation of concerns**. The diagram b
 [Tutorial Page](https://grater-jax.readthedocs.io/en/latest/tutorials/index.html)
 
 #### Optimizer Class
-- Central orchestration layer
-- Owns:
-  - Parameter vectors
-  - Bounds and transforms
-  - Links to objective functions
+- Front facing API for disk fitting
+- Handles disk component parameters
+- Compiles objective model and gradient
+- Excecutes gradient-descent/MCMC fitting
 
 #### Objective Functions
 - `objective_model`
@@ -136,15 +135,18 @@ This results in:
 - Stable gradients for both optimization and MCMC
 - Identical code paths for CPU and GPU execution
 
+*Note*: Autodiff is Jitted by default for better runtime
+
 ---
 
 ## 6. Where to Go Next
 
 - **Tutorials**
-  - Learn how to do basic disk modeling and benchmarking.
+  - Basic disk modeling and benchmarking.
 
 - **How-Tos**
-  - Learn how to model read debris disk data and perform SPF injection recovery
+  - Model read debris disk data using autodiff
+  - Perform MCMC and SPF injection recovery
 
 - **API reference**
   - See module-level documentation in the optimization and disk_model subpackages
