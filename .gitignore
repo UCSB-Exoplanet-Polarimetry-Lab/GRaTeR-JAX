@@ -1,39 +1,16 @@
 grater_jax/disk_model/__pycache__
 grater_jax/optimization/__pycache__
 __pycache__
-GPI_init_fit.ipynb
-GPI_init_fit.py
 *.pyc
-docs/tutorials/stellar_psf_images/
-docs/tutorials/test_images/
-docs/tutorials/stpsf-data/
-docs/tutorials/cdbs/
-docs/tutorials/PSFs/
-docs/tutorials/test_emcee_backend.h5
-# MCMC HDF5 backends (too large for git — use precomputed_chains.npz instead)
-docs/tutorials/mcmc_backends/*.h5
+docs/How-Tos/mcmc_backends/*.h5
+docs/How-Tos/test_emcee_backend.h5
 docs/api/generated/
 tests/test_images
 tests/cdbs
 tests/stpsf-data
 grater_jax.egg-info
 test
-.gitignore
 # Run logs
 *.log
-# Stray output dirs at repo root
-/spline_recovery_plots/
-# Standalone output plots (embedded in tutorial notebook instead)
-docs/tutorials/spline_recovery_plots/
-# Injected disk images (generated artifacts)
-docs/tutorials/inject_disk_*
-# Work-in-progress scripts and artifacts
-docs/tutorials/run_mcmc_poisson.py
-docs/tutorials/make_corner_plots.py
-docs/tutorials/compare_grad.py
-docs/tutorials/check_poisson_scipy.py
-docs/tutorials/RESULTS_SUMMARY.md
-docs/tutorials/spline_spf_injection_recovery.ipynb
-docs/tutorials/injection_disks.ipynb
-docs/tutorials/recovery_disks.ipynb
-docs/tutorials/recovery_disks_full.ipynb
+docs/How-Tos/test_emcee_backend.h5
+docs/How-Tos/mcmc_backends/*.h5

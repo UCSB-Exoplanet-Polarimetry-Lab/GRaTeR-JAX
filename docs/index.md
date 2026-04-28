@@ -30,7 +30,7 @@ Contributions from the community are always welcome.
 ---
 
 ## Attribution
-The development of GRaTeR-JAX is led by **Mihir Kondapalli**, **Briley Lewis**, and **Max Millar-Blanchaer**
+The development of GRaTeR-JAX is led by **Mihir Kondapalli**, **Briley Lewis**, **Jaren Ashcraft**, and **Max Millar-Blanchaer**
 with contributions from members of the **UCSB Exoplanet Polarimetry Lab** and the wider astrophysics software community.
 
 If you build upon this package, please cite both GRaTeR-JAX (Kondapalli et al. in prep JOSS, Lewis et al. in prep AJ) and the original GRaTeR framework [(Augereau+ 1999)](https://ui.adsabs.harvard.edu/abs/1999A%26A...348..557A/abstract).
@@ -48,7 +48,8 @@ This work was developed by the [**UCSB Exoplanet Polarimetry Lab**](https://ucsb
 :maxdepth: 2
 
 index
-guide/index
-tutorials/index
+Explanations/index
+How-Tos/index
+Tutorials/index
 api/index
 ```
