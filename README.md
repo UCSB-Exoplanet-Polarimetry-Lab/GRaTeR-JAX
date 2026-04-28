@@ -13,7 +13,7 @@
 - **JAX-Based Optimization**: Leverages JAX for fast, GPU/TPU-accelerated disk modeling.
 - **Scattered Light Debris Disk Modeling**: Implements physical models of circumstellar debris disks.
 - **Differentiable Framework**: Enables gradient-based optimization and probabilistic inference.
-- **Integration with Webbpsf**: Supports JWST PSF convolutions for forward modeling. (Experimental)
+- **Integration with Webbpsf**: Supports JWST PSF convolutions for forward modeling. (Experimental JWST Notebook: in 'jwst' branch)
 
 ## Installation
 
