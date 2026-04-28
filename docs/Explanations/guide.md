@@ -83,10 +83,10 @@ GRaTeR-JAX is organized around a **clean separation of concerns**. The diagram b
 ### Core components
 
 #### Tutorials
-- `DiskTutorial.ipynb`
-- `FitsTutorial.ipynb`
-- `SPFInjectionRecoveryTutorial.ipynb`
-- `SpeedComparision.ipynb`
+- Disk Modeling Basics (Tutorials)
+- Advanced Disk Modeling (How-Tos)
+- SPFInjectionRecoveryTutorial.ipynb (How-Tos)
+- Speed Comparisions (Tutorials)
 
 [Tutorial Page](https://grater-jax.readthedocs.io/en/latest/tutorials/index.html)
 
@@ -140,12 +140,11 @@ This results in:
 
 ## 6. Where to Go Next
 
-- **Getting started**
-  - `DiskTutorial.ipynb`
-  - `FitsTutorial.ipynb`
+- **Tutorials**
+  - Learn how to do basic disk modeling and benchmarking.
 
-- **Performance benchmarking**
-  - `SpeedComparision.ipynb`
+- **How-Tos**
+  - Learn how to model read debris disk data and perform SPF injection recovery
 
 - **API reference**
   - See module-level documentation in the optimization and disk_model subpackages
