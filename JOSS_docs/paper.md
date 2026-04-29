@@ -8,7 +8,7 @@ tags:
   - machine learning
 authors:
   - name: Mihir Kondapalli
-    orcid: 0000-0000-0000-0000
+    orcid: 0009-0004-9073-5103
     affiliation: 1
   - name: Briley L. Lewis
     orcid: 0000-0000-0000-0000
