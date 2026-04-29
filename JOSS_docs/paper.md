@@ -36,11 +36,11 @@ Python; Astronomy; Debris Disks; JAX; Machine Learning
 
 `GRaTer-JAX` delivers a more powerful, efficient, and robust debris disk modeling framework than previous tools. Its JAX-based backend provides orders-of-magnitude speedups and analytic gradients, while its intuitive and extensible API unifies forward modeling, optimization, and inference within a single workflow. Combined with key additions to its disk model, it is capable of more advanced debris disk modeling, enabling research that was previously impossible such as explorations of additional morphological parameters and disk composition via scattering phase functions.
 
+![](GJFit.png)
+
 # Statement of Need
 
 Debris disks are circumstellar belts of dust and planetesimals, shaped by a combination of stellar forces, dynamical interactions, and collisional processes [@Hughes2018]. Their observed morphologies provide key information for understanding the architecture, composition, and evolutionary history of planetary systems. However, imaging observations of such disks are often limited by noise, resolution, and instrumental effects, making direct interpretation of data challenging [@Hughes2018]. As a result, forward modeling (e.g. Figure 1) is essential for extracting insight from observations.
-
-![](GJFit.png)
 
 *Figure 1. GRaTer-JAX Disk Fit of HD 115600 in H-band polarimetry from the Gemini Planet Imager debris disk survey [@Esposito2020].*
 
