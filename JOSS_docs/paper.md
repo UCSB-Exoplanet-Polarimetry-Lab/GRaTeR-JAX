@@ -11,13 +11,13 @@ authors:
     orcid: 0009-0004-9073-5103
     affiliation: 1
   - name: Briley L. Lewis
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0002-8984-4319
     affiliation: 1
   - name: Jaren Ashcraft
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0001-5082-7442
     affiliation: 1
   - name: Maxwell A. Millar-Blanchaer
-    orcid: 0000-0000-0000-0000
+    orcid: 0000-0001-6205-9233
     affiliation: 1
 affiliations:
   - name: University of California, Santa Barbara, Santa Barbara, CA 93106 USA
