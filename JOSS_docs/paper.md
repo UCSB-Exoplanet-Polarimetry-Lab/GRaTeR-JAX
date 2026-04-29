@@ -38,9 +38,11 @@ Python; Astronomy; Debris Disks; JAX; Machine Learning
 
 # Statement of Need
 
-Debris disks are circumstellar belts of dust and planetesimals, shaped by a combination of stellar forces, dynamical interactions, and collisional processes [@Hughes2018]. Their observed morphologies provide key information for understanding the architecture, composition, and evolutionary history of planetary systems. However, imaging observations of such disks are often limited by noise, resolution, and instrumental effects, making direct interpretation of data challenging [@Hughes2018]. As a result, forward modeling (e.g. \autoref{fig:diskfit}) is essential for extracting insight from observations.
+Debris disks are circumstellar belts of dust and planetesimals, shaped by a combination of stellar forces, dynamical interactions, and collisional processes [@Hughes2018]. Their observed morphologies provide key information for understanding the architecture, composition, and evolutionary history of planetary systems. However, imaging observations of such disks are often limited by noise, resolution, and instrumental effects, making direct interpretation of data challenging [@Hughes2018]. As a result, forward modeling (e.g. Figure 1) is essential for extracting insight from observations.
 
-![GRaTer-JAX Disk Fit of HD 115600 in *H*-band polarimetry from the Gemini Planet Imager debris disk survey [@Esposito2020].\label{fig:diskfit}](GJFit.png)
+![](GJFit.png)
+
+*Figure 1. GRaTer-JAX Disk Fit of HD 115600 in H-band polarimetry from the Gemini Planet Imager debris disk survey [@Esposito2020].*
 
 For the past 25 years, the *Generalized Radial Transporter (GRaTer)* framework [@augereau1999] has provided an analytical foundation for debris disk modeling and has been widely used to study observed disk morphologies and infer physical disk properties (e.g. [@Hughes2018]). A key component of the `GRaTer` model is the scattering phase function (SPF), which describes how dust grains scatter starlight toward the observer. Because the SPF is directly related to dust grain properties, it can provide valuable insight into grain composition, grain size distribution, and grain porosity. However, disk modeling efforts have been historically limited by prohibitively long computation times, requiring assumptions about disk properties to simplify the models.
 
@@ -60,13 +62,17 @@ All in all, `GRaTer-JAX` provides solutions to multiple existing challenges in d
 
 # Software Design
 
-The software design of `GRaTer-JAX` was guided by a central trade-off: exposing the full flexibility and performance of JAX while providing an interface that is practical for astronomers using debris disk models in real research workflows. A purely low-level JAX interface would maximize flexibility, but it would also require users to manually assemble model components, manage parameter transformations, and understand JAX-specific implementation details. While powerful, that approach would create a substantial usability barrier for researchers whose primary goal is scientific modeling rather than software engineering. On the other hand, a highly simplified interface could make common workflows easier, but at the cost of limiting extensibility and making it difficult to support more advanced models. `GRaTer-JAX` was therefore designed as a layered system that balances performance, usability, and extensibility; this architecture is visualized in a block diagram in \autoref{fig:block-diagram}.
+The software design of `GRaTer-JAX` was guided by a central trade-off: exposing the full flexibility and performance of JAX while providing an interface that is practical for astronomers using debris disk models in real research workflows. A purely low-level JAX interface would maximize flexibility, but it would also require users to manually assemble model components, manage parameter transformations, and understand JAX-specific implementation details. While powerful, that approach would create a substantial usability barrier for researchers whose primary goal is scientific modeling rather than software engineering. On the other hand, a highly simplified interface could make common workflows easier, but at the cost of limiting extensibility and making it difficult to support more advanced models. `GRaTer-JAX` was therefore designed as a layered system that balances performance, usability, and extensibility; this architecture is visualized in a block diagram in Figure 2.
 
-![High-Level Architecture Block Diagram.\label{fig:block-diagram}](GJBlock.png)
+![](GJBlock.png)
+
+*Figure 2. High-Level Architecture Block Diagram.*
 
 `GRaTer-JAX`'s layered architecture is key because debris disk modeling is both computationally expensive and scientifically iterative. Researchers often move from simple forward models to more advanced fitting and inference. The low-level JAX layer provides speed and differentiability, the objective-function layer improves usability, and the optimizer layer connects the framework to real observational analysis. Together, these choices make the software efficient, flexible, and practical for research use.
 
-![Flow Diagram for Disk Fitting Workflows.\label{fig:flow-diagram}](GJFlow.png)
+![](GJFlow.png)
+
+*Figure 3. Flow Diagram for Disk Fitting Workflows.*
 
 # Research Impact Statement
 
@@ -74,7 +80,7 @@ The software design of `GRaTer-JAX` was guided by a central trade-off: exposing 
 
 A key advancement enabled by `GRaTer-JAX` is the ability to fit the SPF with a flexible spline, as opposed to the Henyey-Greenstein function [@henyey1941diffuse], which is parameterized by only the asymmetry parameter $g$ and has multiple known shortcomings [@Hughes2018]. The free parameters of the SPF under our new framework are the y-values of the spline knots; the x-values of the spline knots are evenly spaced between $0^\circ$ and $180^\circ$, or between $\theta_{\rm sca,min}$ and $\theta_{\rm sca,max}$ if using inclination-based bounds, with a knot fixed to 1 at $90^\circ$ to normalize the SPF and avoid degeneracy with the flux scaling. The number of knots $n_k$ is determined by the user. With this new framework, researchers have the potential to finally capture the true scattering behavior of debris disks, therefore providing insight into their grain properties.
 
-This potential for more powerful models has already been realized in a recent analysis of *H*-band polarimetric debris disk images from the Gemini Planet Imager (GPI) [@macintosh2008gemini; @LewisEtAl2026], where `GRaTer-JAX` is being used as the primary modeling engine. In @LewisEtAl2026, it is used to forward-model the disk images, fit twelve or more debris disk parameters together with spline-based scattering phase functions, and sample posterior distributions with MCMC across a large target sample, revealing population-level trends in planet formation/evolution.
+This potential for more powerful models has already been realized in a recent analysis of *H*-band polarimetric debris disk images from the Gemini Planet Imager (GPI) [@macintosh2008gemini; @LewisEtAl2026], where `GRaTer-JAX` is being used as the primary modeling engine. In [@LewisEtAl2026], it is used to forward-model the disk images, fit twelve or more debris disk parameters together with spline-based scattering phase functions, and sample posterior distributions with MCMC across a large target sample, revealing population-level trends in planet formation/evolution.
 
 Additionally, work on `GRaTer-JAX` has not only made this modeling more accessible through its new, intuitive API and workflows, but also through the development of a web app to help researchers develop an intuition for how different disk parameters change the observed morphology. [GRaTer Disk Image Generator](https://scattered-light-disks.vercel.app/) provides researchers a simple interface to visualize debris disk images using elements of the GRaTer-JAX package, allowing them to workshop disks and try out different geometries before more detailed fitting.
 
