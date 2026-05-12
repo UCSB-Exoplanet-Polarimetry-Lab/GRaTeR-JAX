@@ -13,7 +13,7 @@ authors:
   - name: Briley L. Lewis
     orcid: 0000-0002-8984-4319
     affiliation: 1
-  - name: Jaren Ashcraft
+  - name: Jaren N. Ashcraft
     orcid: 0000-0001-5082-7442
     affiliation: 1
   - name: Maxwell A. Millar-Blanchaer
