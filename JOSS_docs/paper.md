@@ -38,7 +38,7 @@ Python; Astronomy; Debris Disks; JAX; Machine Learning
 
 ![](GJFit.png)
 
-*Figure 1. GRaTer-JAX Disk Fit of HD 115600 in H-band polarimetry from the Gemini Planet Imager debris disk survey [@Esposito2020].*
+*Figure 1. GRaTer-JAX Disk Fit of HD 115600 in H-band polarimetry from the Gemini Planet Imager debris disk survey [@Esposito2020], illustrating the package's ability to resproduce disk morphologies from real data.*
 
 # Statement of Need
 
@@ -66,13 +66,13 @@ The software design of `GRaTer-JAX` was guided by a central trade-off: exposing 
 
 ![](GJBlock.png)
 
-*Figure 2. High-Level Architecture Block Diagram.*
+*Figure 2. High-Level Architecture Block Diagram, illustrating which levels are and are not optimized via JAX JIT compilation.*
 
 `GRaTer-JAX`'s layered architecture is key because debris disk modeling is both computationally expensive and scientifically iterative. Researchers often move from simple forward models to more advanced fitting and inference. The low-level JAX layer provides speed and differentiability, the objective-function layer improves usability, and the optimizer layer connects the framework to real observational analysis. Together, these choices make the software efficient, flexible, and practical for research use.
 
 ![](GJFlow.png)
 
-*Figure 3. Flow Diagram for Disk Fitting Workflows.*
+*Figure 3. Flow Diagram for Disk Fitting Workflows. Illustrates a general disk fitting workflow from initialization to gradient descent and MCMC results.*
 
 # Research Impact Statement
 
