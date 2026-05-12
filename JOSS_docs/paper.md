@@ -38,11 +38,11 @@ Python; Astronomy; Debris Disks; JAX; Machine Learning
 
 ![](GJFit.png)
 
+*Figure 1. GRaTer-JAX Disk Fit of HD 115600 in H-band polarimetry from the Gemini Planet Imager debris disk survey [@Esposito2020], illustrating the package's ability to resproduce disk morphologies from real data.*
+
 # Statement of Need
 
 Debris disks are circumstellar belts of dust and planetesimals, shaped by a combination of stellar forces, dynamical interactions, and collisional processes [@Hughes2018]. Their observed morphologies provide key information for understanding the architecture, composition, and evolutionary history of planetary systems. However, imaging observations of such disks are often limited by noise, resolution, and instrumental effects, making direct interpretation of data challenging [@Hughes2018]. As a result, forward modeling (e.g. Figure 1) is essential for extracting insight from observations.
-
-*Figure 1. GRaTer-JAX Disk Fit of HD 115600 in H-band polarimetry from the Gemini Planet Imager debris disk survey [@Esposito2020].*
 
 For the past 25 years, the *Generalized Radial Transporter (GRaTer)* framework [@augereau1999] has provided an analytical foundation for debris disk modeling and has been widely used to study observed disk morphologies and infer physical disk properties (e.g. [@Hughes2018]). A key component of the `GRaTer` model is the scattering phase function (SPF), which describes how dust grains scatter starlight toward the observer. Because the SPF is directly related to dust grain properties, it can provide valuable insight into grain composition, grain size distribution, and grain porosity. However, disk modeling efforts have been historically limited by prohibitively long computation times, requiring assumptions about disk properties to simplify the models.
 
@@ -66,13 +66,13 @@ The software design of `GRaTer-JAX` was guided by a central trade-off: exposing 
 
 ![](GJBlock.png)
 
-*Figure 2. High-Level Architecture Block Diagram.*
+*Figure 2. High-Level Architecture Block Diagram, illustrating which levels are and are not optimized via JAX JIT compilation.*
 
 `GRaTer-JAX`'s layered architecture is key because debris disk modeling is both computationally expensive and scientifically iterative. Researchers often move from simple forward models to more advanced fitting and inference. The low-level JAX layer provides speed and differentiability, the objective-function layer improves usability, and the optimizer layer connects the framework to real observational analysis. Together, these choices make the software efficient, flexible, and practical for research use.
 
 ![](GJFlow.png)
 
-*Figure 3. Flow Diagram for Disk Fitting Workflows.*
+*Figure 3. Flow Diagram for Disk Fitting Workflows. Illustrates a general disk fitting workflow from initialization to gradient descent and MCMC results.*
 
 # Research Impact Statement
 
