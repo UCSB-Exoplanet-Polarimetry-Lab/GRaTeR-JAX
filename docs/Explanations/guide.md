@@ -119,6 +119,18 @@ GRaTeR-JAX is organized around a **clean separation of concerns**. The diagram b
 - Low-level JAX disk model definitions
 - Performance-critical code
 
+### Peripheral Components (In Development)
+
+#### `winnie_class.py`
+- Provides the JAX-compatible `WinniePSF` implementation
+- Applies spatially varying JWST PSFs across spacecraft roll angles
+- Integrates optional Winnie PSF support with the model-generation and optimization pipeline
+
+#### `winnie_jwst_fm.py`
+- Contains utilities adapted from the Winnie package for generating JWST NIRCam PSF grids
+- Supplies PSF index maps, coronagraph masks, and supporting image-processing functions
+- Primarily used by `winnie_class.py` when constructing a `WinniePSF` from a spaceKLIP database
+
 ---
 
 ## 5. JAX JIT Compilation Strategy
