@@ -6,3 +6,4 @@ Community Guidelines
    :glob:
 
    *
+   Running Automated Testing <running>
