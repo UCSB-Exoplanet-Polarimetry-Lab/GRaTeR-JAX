@@ -73,7 +73,8 @@ Please cite the DOI for this repository, as well as the accompanying paper (subm
       archivePrefix={arXiv},
       primaryClass={astro-ph.EP},
       url={https://arxiv.org/abs/2607.25342}, 
-}  ```
+}
+```
 
 ## Acknowledgments
 
