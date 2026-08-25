@@ -62,6 +62,19 @@ We welcome contributions! To contribute:
 3. Commit your changes and push to your fork.
 4. Open a pull request.
 
+## Citation
+
+Please cite the DOI for this repository, as well as the accompanying paper (submitted to JOSS, currently available on arXiv):
+``` @misc{kondapalli2026graterjaxacceleratedpackagedebris,
+      title={GRaTer-JAX: An Accelerated Package for Debris Disk Modeling}, 
+      author={Mihir Kondapalli and Briley L. Lewis and Jaren N. Ashcraft and Maxwell A. Millar-Blanchaer},
+      year={2026},
+      eprint={2607.25342},
+      archivePrefix={arXiv},
+      primaryClass={astro-ph.EP},
+      url={https://arxiv.org/abs/2607.25342}, 
+} ```
+
 ## Acknowledgments
 
 Developed by the **UCSB Exoplanet Polarimetry Lab**. This work is inspired by previous implementations of GRaTeR and advances in JAX-based differentiable modeling.
