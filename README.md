@@ -65,7 +65,8 @@ We welcome contributions! To contribute:
 ## Citation
 
 Please cite the DOI for this repository, as well as the accompanying paper (submitted to JOSS, currently available on arXiv):
-``` @misc{kondapalli2026graterjaxacceleratedpackagedebris,
+```
+@misc{kondapalli2026graterjaxacceleratedpackagedebris,
       title={GRaTer-JAX: An Accelerated Package for Debris Disk Modeling}, 
       author={Mihir Kondapalli and Briley L. Lewis and Jaren N. Ashcraft and Maxwell A. Millar-Blanchaer},
       year={2026},
