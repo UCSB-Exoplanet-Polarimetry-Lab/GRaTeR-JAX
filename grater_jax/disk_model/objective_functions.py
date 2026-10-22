@@ -116,7 +116,7 @@ These objective functions serve as the middleware that connects the Optimizer cl
 
 def objective_model(disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, stellar_psf_params=None, StellarPSFModel=None,
-                       throughput=None, **kwargs):
+                       throughput=None, output='image', **kwargs):
 
     """
     Generate a disk model image given disk, scattering function, point spread function, stellar psf point spread function,
@@ -149,6 +149,9 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
         The scattering phase function model type, set to None be default indicating no stellar psf model.
     throughput : np.ndarray, optional
         The throughput image to apply to the generated disk image. Defaults to None, indicating all 1s.
+    output : {'image', 'PI', 'Q', 'U', 'Qphi', 'Uphi'}, optional
+        Image product. Polarization products require a polarized scattering
+        phase function and use Q,U convolution before azimuthal conversion.
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -175,7 +178,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            flux_scaling=misc_params['flux_scaling']
+            flux_scaling=misc_params['flux_scaling'], output=output
         )
     elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
         model_image = jax_model_winnie(
@@ -185,7 +188,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            flux_scaling=misc_params['flux_scaling']
+            flux_scaling=misc_params['flux_scaling'], output=output
         )
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
         model_image = jax_model_spline(
@@ -196,7 +199,7 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
+            flux_scaling=misc_params['flux_scaling'], output=output, knots=FuncModel.get_knots(spf_params)
         )
     else:
         model_image = jax_model_spline_winnie(
@@ -206,14 +209,14 @@ def objective_model(disk_params, spf_params, psf_params, misc_params,
             StellarPSFModel.pack_pars(stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            flux_scaling=misc_params['flux_scaling'], knots=FuncModel.get_knots(spf_params)
+            flux_scaling=misc_params['flux_scaling'], output=output, knots=FuncModel.get_knots(spf_params)
         )
 
     return model_image
 
 def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, target_image, err_map,
-                       throughput = None, ll_method = 'sum', **kwargs):
+                       throughput = None, ll_method = 'sum', output='image', **kwargs):
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
     stellar psf point spread function, and misceallaneous parameters along with the target image and error map.
@@ -249,6 +252,9 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
         The error map for the target image.
     throughput : np.ndarray
         The throughput image to apply to the generated disk image. Defaults to None, indicating all 1s.
+    output : {'image', 'PI', 'Q', 'U', 'Qphi', 'Uphi'}, optional
+        Image product. Polarization products require a polarized scattering
+        phase function and use Q,U convolution before azimuthal conversion.
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -259,8 +265,9 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
     """
 
     model_image = objective_model(
-        disk_params, spf_params, psf_params, stellar_psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel,
-        StellarPSFModel, throughput=throughput, **kwargs
+        disk_params, spf_params, psf_params, misc_params, DiskModel, DistrModel, FuncModel, PSFModel,
+        stellar_psf_params=stellar_psf_params, StellarPSFModel=StellarPSFModel,
+        throughput=throughput, output=output, **kwargs
     )
 
     sigma2 = jnp.power(err_map, 2)
@@ -284,7 +291,7 @@ def objective_ll(disk_params, spf_params, psf_params, stellar_psf_params, misc_p
 def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
                        throughput = None, stellar_psf_params = None, StellarPSFModel = None,
-                       ll_method = 'sum', **kwargs):
+                       ll_method = 'sum', output='image', **kwargs):
     """
     Same as the objective_ll function but accepts replacement values for the given parameters in fit_keys.
     This is ideal for fitting as it provides a clean objective function for a given set of parameters.
@@ -327,6 +334,9 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
         The error map for the target image.
     throughput : np.ndarray
         The throughput image to apply to the generated disk image. Defaults to None, indicating all 1s.
+    output : {'image', 'PI', 'Q', 'U', 'Qphi', 'Uphi'}, optional
+        Image product. Polarization products require a polarized scattering
+        phase function and use Q,U convolution before azimuthal conversion.
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -383,7 +393,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            flux_scaling=temp_misc_params['flux_scaling']
+            flux_scaling=temp_misc_params['flux_scaling'], output=output
         )
     elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
         model_image = jax_model_winnie(
@@ -393,7 +403,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            flux_scaling=temp_misc_params['flux_scaling']
+            flux_scaling=temp_misc_params['flux_scaling'], output=output
         )
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
         model_image = jax_model_spline(
@@ -404,7 +414,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            flux_scaling=temp_misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
+            flux_scaling=temp_misc_params['flux_scaling'], output=output, knots=FuncModel.get_knots(temp_spf_params)
         )
     else:
         model_image = jax_model_spline_winnie(
@@ -414,7 +424,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             StellarPSFModel.pack_pars(temp_stellar_psf_params) if isinstance(stellar_psf_params, dict) else stellar_psf_params,
             throughput, distance = misc_params['distance'], pxInArcsec = misc_params['pxInArcsec'],
             nx = misc_params['nx'], ny = misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            flux_scaling=temp_misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
+            flux_scaling=temp_misc_params['flux_scaling'], output=output, knots=FuncModel.get_knots(temp_spf_params)
         )
 
     return log_likelihood(model_image, target_image, err_map, ll_method=ll_method)
@@ -423,7 +433,7 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
 def objective_grad(disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map,
                        throughput = None, stellar_psf_params = None, StellarPSFModel = None,
-                       ll_method = 'sum', **kwargs):
+                       ll_method = 'sum', output='image', **kwargs):
     """
     Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
     disk, scattering function, point spread function, stellar psf point spread function, and misceallaneous parameters
@@ -460,6 +470,9 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
         The error map for the target image.
     throughput : np.ndarray
         The throughput image to apply to the generated disk image. Defaults to None, indicating all
+    output : {'image', 'PI', 'Q', 'U', 'Qphi', 'Uphi'}, optional
+        Image product. Polarization products require a polarized scattering
+        phase function and use Q,U convolution before azimuthal conversion.
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -493,7 +506,7 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            ll_method=ll_method
+            ll_method=ll_method, output=output
         )
     elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
         gradients = jax_model_winnie_grad(
@@ -505,7 +518,7 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            ll_method=ll_method
+            ll_method=ll_method, output=output
         )
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
 
@@ -520,7 +533,7 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             knots=FuncModel.get_knots(spf_params),
-            ll_method=ll_method
+            ll_method=ll_method, output=output
         )
     else:
         gradients = jax_model_spline_winnie_grad(
@@ -533,14 +546,14 @@ def objective_grad(disk_params, spf_params, psf_params, misc_params,
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             knots=FuncModel.get_knots(spf_params),
-            ll_method=ll_method
+            ll_method=ll_method, output=output
         )
 
     return gradients
 
 def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params, misc_params,
                        DiskModel, DistrModel, FuncModel, PSFModel, target_image, err_map, throughput = None,
-                       stellar_psf_params = None, StellarPSFModel = None, ll_method = 'sum', **kwargs):
+                       stellar_psf_params = None, StellarPSFModel = None, ll_method = 'sum', output='image', **kwargs):
     """
     Get the gradient of each parameter with respect to the log likelihood for the generated disk model image given
     disk, scattering function, point spread function, stellar psf point spread function, and misceallaneous parameters
@@ -585,6 +598,9 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
         The error map for the target image.
     throughput : np.ndarray
         The throughput image to apply to the generated disk image. Defaults to None, indicating all
+    output : {'image', 'PI', 'Q', 'U', 'Qphi', 'Uphi'}, optional
+        Image product. Polarization products require a polarized scattering
+        phase function and use Q,U convolution before azimuthal conversion.
     kwargs : dict, optional
         Additional keyword arguments that are passed into the objective model function.
         
@@ -641,7 +657,7 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             temp_misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            ll_method=ll_method
+            ll_method=ll_method, output=output
         )
     elif not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel == Winnie_PSF:
         gradients = jax_model_winnie_grad(
@@ -653,7 +669,7 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             temp_misc_params['flux_scaling'],
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
-            ll_method=ll_method
+            ll_method=ll_method, output=output
         )
     elif issubclass(FuncModel, InterpolatedUnivariateSpline_SPF) and PSFModel != Winnie_PSF:
 
@@ -668,7 +684,7 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             knots=FuncModel.get_knots(temp_spf_params),
-            ll_method=ll_method
+            ll_method=ll_method, output=output
         )
     else:
         gradients = jax_model_spline_winnie_grad(
@@ -681,7 +697,7 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             distance=misc_params['distance'], pxInArcsec=misc_params['pxInArcsec'],
             nx=misc_params['nx'], ny=misc_params['ny'], halfNbSlices=misc_params['halfNbSlices'],
             knots=FuncModel.get_knots(temp_spf_params),
-            ll_method=ll_method
+            ll_method=ll_method, output=output
         )
 
     return gradients

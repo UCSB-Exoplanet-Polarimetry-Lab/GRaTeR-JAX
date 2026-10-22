@@ -18,6 +18,9 @@ import jax
 import jax.numpy as jnp
 
 from functools import partial
+from grater_jax.disk_model.jax_model_wrappers import (
+    jax_model, jax_model_spline, jax_model_winnie, jax_model_spline_winnie
+)
 
 
 @partial(jax.jit, static_argnames=('ll_method',))
@@ -87,7 +90,7 @@ def residuals(image, target_image, err_map):
     return result
 
 def jax_model_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
-              throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, ll_method = 'sum'):
+              throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, ll_method = 'sum', output='image'):
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
     stellar psf point spread function, and misceallaneous parameters along with the target image and error map. This
@@ -142,50 +145,14 @@ def jax_model_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, di
         Log likelihood for the generated disk image, target image, and error map.
     """
 
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, spf_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    if PSFModel != None:
-        scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return log_likelihood(scattered_light_image*throughput, target_image, err_map, ll_method=ll_method)
+    image = jax_model(
+        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, throughput,
+        flux_scaling=flux_scaling, distance=distance, pxInArcsec=pxInArcsec,
+        nx=nx, ny=ny, halfNbSlices=halfNbSlices, output=output)
+    return log_likelihood(image, target_image, err_map, ll_method=ll_method)
 
 def jax_model_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
-                     throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, ll_method = 'sum'):
+                     throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, ll_method = 'sum', output='image'):
 
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
@@ -238,50 +205,15 @@ def jax_model_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSF
         Log likelihood for the generated disk image, target image, and error map.
     """
 
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, spf_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return log_likelihood(scattered_light_image*throughput, target_image, err_map, ll_method=ll_method)
+    image = jax_model_winnie(
+        DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, throughput,
+        flux_scaling=flux_scaling, distance=distance, pxInArcsec=pxInArcsec,
+        nx=nx, ny=ny, halfNbSlices=halfNbSlices, output=output)
+    return log_likelihood(image, target_image, err_map, ll_method=ll_method)
 
 def jax_model_spline_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, target_image, err_map,
                      throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
-                     knots=np.delete(np.linspace(1,-1,5), 2), ll_method = 'sum'):
+                     knots=np.delete(np.linspace(1,-1,5), 2), ll_method = 'sum', output='image'):
 
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
@@ -337,53 +269,15 @@ def jax_model_spline_ll(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFMo
         Log likelihood for the generated disk image, target image, and error map.
     """
 
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-
-    func_params = FuncModel.pack_pars(spf_params, knots=knots)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, func_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-    
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    if PSFModel != None:
-        scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return log_likelihood(scattered_light_image*throughput, target_image, err_map, ll_method=ll_method)
+    image = jax_model_spline(
+        DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, throughput,
+        flux_scaling=flux_scaling, distance=distance, pxInArcsec=pxInArcsec,
+        nx=nx, ny=ny, halfNbSlices=halfNbSlices, output=output, knots=knots)
+    return log_likelihood(image, target_image, err_map, ll_method=ll_method)
 
 def jax_model_spline_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, target_image, err_map,
                      throughput, flux_scaling = 1e6, distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
-                     knots=np.delete(np.linspace(1,-1,5), 2), ll_method = 'sum'):
+                     knots=np.delete(np.linspace(1,-1,5), 2), ll_method = 'sum', output='image'):
 
     """
     Get the log likelihood for the generated disk model image given disk, scattering function, point spread function,
@@ -436,48 +330,11 @@ def jax_model_spline_winnie_ll(DiskModel, DistrModel, FuncModel, winnie_psf, Ste
         Log likelihood for the generated disk image, target image, and error map.
     """
 
-    distr_params = DistrModel.init(accuracy=disk_params[0], alpha_in=disk_params[1], alpha_out=disk_params[2], sma=disk_params[3],
-                                   e=disk_params[4], ksi0=disk_params[5], gamma=disk_params[6], beta=disk_params[7],
-                                   rmin=disk_params[8], dens_at_r0=disk_params[9])
-    disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
-                                              disk_params[1], disk_params[2], disk_params[3],
-                                              nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
-
-    yc, xc = ny, nx
-    xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
-    yc = jnp.where(ny%2==1, ny/2-0.5, ny/2).astype(int)
-
-    x_vector = (jnp.arange(0, nx) - xc)*pxInArcsec*distance
-    y_vector = (jnp.arange(0, ny) - yc)*pxInArcsec*distance
-
-    scattered_light_map = jnp.zeros((ny, nx))
-    image = jnp.zeros((ny, nx))
-
-    limage = jnp.zeros([2*halfNbSlices-1, ny, nx])
-    tmp = jnp.arange(0, halfNbSlices)
-
-    func_params = FuncModel.pack_pars(spf_params, knots=knots)
-    
-    scattered_light_image = DiskModel.compute_scattered_light_jax(disk_params_jax, distr_params, DistrModel, func_params, FuncModel,
-                                                                  x_vector, y_vector, scattered_light_map, image, limage, tmp,
-                                                                  halfNbSlices)
-
-    dims = scattered_light_image.shape
-    x, y = jnp.meshgrid(jnp.arange(dims[1], dtype=jnp.float32), jnp.arange(dims[0], dtype=jnp.float32))
-    x = x - disk_params[12] + xc
-    y = y - disk_params[13] + yc
-    scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
-                                                            jnp.array([y, x]),order=1,cval = 0.)
-
-    scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
-
-    scattered_light_image = scattered_light_image*flux_scaling
-
-    if StellarPSFModel != None:
-        scattered_light_image = scattered_light_image + StellarPSFModel.compute_stellar_psf_image(stellar_psf_params, nx, ny)
-
-    return log_likelihood(scattered_light_image*throughput, target_image, err_map, ll_method=ll_method)
+    image = jax_model_spline_winnie(
+        DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, throughput,
+        flux_scaling=flux_scaling, distance=distance, pxInArcsec=pxInArcsec,
+        nx=nx, ny=ny, halfNbSlices=halfNbSlices, output=output, knots=knots)
+    return log_likelihood(image, target_image, err_map, ll_method=ll_method)
 
 # JAX GRADS (comment out whatever grad functions you don't need to save gpu memory)
 
@@ -492,16 +349,16 @@ For disk_params, spf_params, psf_params, and stellar_psf_params each flattened i
 
 jax_model_grad = jax.jit(jax.grad(jax_model_ll, argnums=(5, 6, 7, 8, 12)),
                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices', 'll_method'])
+                                                 'nx', 'ny', 'halfNbSlices', 'll_method', 'output'])
 
 jax_model_winnie_grad = jax.jit(jax.grad(jax_model_winnie_ll, argnums=(5, 6, 7, 11)),
                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices', 'll_method'])
+                                                 'nx', 'ny', 'halfNbSlices', 'll_method', 'output'])
 
 jax_model_spline_grad = jax.jit(jax.grad(jax_model_spline_ll, argnums=(5, 6, 7, 8, 12)),
                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices', 'll_method'])
+                                                 'nx', 'ny', 'halfNbSlices', 'll_method', 'output'])
 
 jax_model_spline_winnie_grad = jax.jit(jax.grad(jax_model_spline_winnie_ll, argnums=(5, 6, 7, 11)),
                                 static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel',
-                                                 'nx', 'ny', 'halfNbSlices', 'll_method'])
+                                                 'nx', 'ny', 'halfNbSlices', 'll_method', 'output'])

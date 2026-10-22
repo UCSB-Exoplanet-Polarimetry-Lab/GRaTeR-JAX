@@ -15,10 +15,11 @@ import jax
 import jax.numpy as jnp
 
 from functools import partial
+from grater_jax.disk_model.polarization import polarized_image
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices', 'output'])
 def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, throughput,
-              distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+              distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6, output='image'):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
@@ -104,6 +105,11 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_
     scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
                                                             jnp.array([y, x]),order=1,cval = 0.)
 
+    if output != 'image':
+        return polarized_image(scattered_light_image, disk_params[12], disk_params[13],
+                               PSFModel, psf_params, flux_scaling, throughput,
+                               StellarPSFModel, output)
+
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
@@ -115,9 +121,9 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_
     return scattered_light_image*throughput 
 
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices', 'output'])
 def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, throughput,
-                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6):
+                     distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6, output='image'):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
@@ -200,6 +206,8 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
     scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
                                                             jnp.array([y, x]),order=1,cval = 0.)
 
+    if output != 'image':
+        raise ValueError("Polarization outputs do not yet support Winnie roll-dependent PSFs")
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
 
     scattered_light_image = scattered_light_image*flux_scaling
@@ -210,10 +218,10 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
     return scattered_light_image*throughput
 
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'PSFModel', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices', 'output'])
 def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_params, spf_params, psf_params, stellar_psf_params, throughput,
                      distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25, flux_scaling = 1e6,
-                     knots=np.delete(np.linspace(1,-1,5), 2)):
+                     knots=np.delete(np.linspace(1,-1,5), 2), output='image'):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
@@ -301,6 +309,11 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
     scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
                                                             jnp.array([y, x]),order=1,cval = 0.)
 
+    if output != 'image':
+        return polarized_image(scattered_light_image, disk_params[12], disk_params[13],
+                               PSFModel, psf_params, flux_scaling, throughput,
+                               StellarPSFModel, output)
+
     if PSFModel != None:
         scattered_light_image = PSFModel.generate(scattered_light_image, psf_params)
 
@@ -312,10 +325,10 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
     return scattered_light_image*throughput
 
 
-@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices'])
+@partial(jax.jit, static_argnames=['DiskModel', 'DistrModel', 'FuncModel', 'winnie_psf', 'StellarPSFModel', 'nx', 'ny', 'halfNbSlices', 'output'])
 def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFModel, disk_params, spf_params, stellar_psf_params, throughput,
                      distance = 0., pxInArcsec = 0., nx = 140, ny = 140, halfNbSlices = 25,
-                     flux_scaling = 1e6, knots=np.delete(np.linspace(1,-1,5), 2)):
+                     flux_scaling = 1e6, knots=np.delete(np.linspace(1,-1,5), 2), output='image'):
     """
     Get the generated disk model image given disk, scattering function, point spread function, stellar psf point
     spread function, and misceallaneous parameters along with the target image and error map. This function only
@@ -403,6 +416,8 @@ def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, Stella
     scattered_light_image = jax.scipy.ndimage.map_coordinates(jnp.copy(scattered_light_image),
                                                             jnp.array([y, x]),order=1,cval = 0.)
 
+    if output != 'image':
+        raise ValueError("Polarization outputs do not yet support Winnie roll-dependent PSFs")
     scattered_light_image = jnp.mean(winnie_psf.get_convolved_cube(scattered_light_image), axis=0)
 
     scattered_light_image = scattered_light_image*flux_scaling

@@ -110,6 +110,9 @@ class Optimizer:
             Throughput correction image; stored as a JAX array.
         **kwargs
             Additional keyword arguments forwarded to the objective model function.
+            Use ``output='Q'``, ``'U'``, ``'Qphi'``, ``'Uphi'``, or ``'PI'`` to
+            configure both image generation and fitting for polarized scattering.
+            The default ``output='image'`` preserves scalar image behavior.
         """
         self.DiskModel = DiskModel
         self.DistrModel = DistrModel
@@ -165,20 +168,30 @@ class Optimizer:
         throughput = np.array(throughput, dtype=np.float32, copy=True)
         self.throughput = jnp.array(throughput)
 
-    def get_model(self):
+    def get_model(self, output=None):
         """
-        Returns the disk model as per the current parameters.
+        Return the configured image, optionally selecting a polarization product.
+
+        Parameters
+        ----------
+        output : {'image', 'PI', 'Q', 'U', 'Qphi', 'Uphi'}, optional
+            Override the output configured at construction for this call only.
+            Polarization products interpret the disk SPF as polarized scattering.
+            To configure fitting, pass ``output`` to the Optimizer constructor.
 
         Returns
         -------
         numpy.ndarray
             2d image of the generated disk model
         """
+        model_kwargs = dict(self.kwargs)
+        if output is not None:
+            model_kwargs['output'] = output
         return objective_model(
             self.disk_params, self.spf_params, self.psf_params, self.misc_params,
             self.DiskModel, self.DistrModel, self.FuncModel, self.PSFModel,
             stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
-            throughput=self.throughput, **self.kwargs
+            throughput=self.throughput, **model_kwargs
         )
     
     def get_objective_likelihood(self, params_fit, fit_keys, target_image, err_map, ll_method='sum'):
@@ -1375,7 +1388,8 @@ class Optimizer:
         return objective_grad(
             self.disk_params, self.spf_params, self.psf_params, self.misc_params, self.DiskModel,
             self.DistrModel, self.FuncModel, self.PSFModel, target_image, err_map,
-            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel, **self.kwargs
+            stellar_psf_params=self.stellar_psf_params, StellarPSFModel=self.StellarPSFModel,
+            throughput=self.throughput, **self.kwargs
         )
     
     def _adjust_gradient_for_logscales(self, grad_list, fit_keys, logscales, is_arrays, flattened_params):
