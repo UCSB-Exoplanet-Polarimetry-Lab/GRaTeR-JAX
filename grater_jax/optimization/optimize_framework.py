@@ -525,7 +525,7 @@ class Optimizer:
                     if logscales[i]:
                         bounds.append((np.log(l+1e-14), np.log(h)))
                     else:
-                        bounds.append((low[0], high[0]))
+                        bounds.append((l, h))
             else:
                 if logscales[i]:
                     bounds.append((np.log(low+1e-14), np.log(high)))
