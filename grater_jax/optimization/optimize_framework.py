@@ -1521,24 +1521,44 @@ class OptimizeUtils:
     @classmethod
     def process_image(cls, image, scale_factor=1, bounds=(70, 210, 70, 210)):
         """
-        Crops, scales, and safely converts an image to float32.
+        Crops an image to a square window and safely converts it to float32.
 
         Parameters
         ----------
         image : numpy.ndarray
             Input image array.
         scale_factor : int, optional
-            Factor to downsample the image spatially. Default is 1 (no scaling).
+            Reserved for spatial downsampling. Only the default of 1 (no scaling)
+            is currently implemented.
         bounds : tuple of int, optional
-            A 4-element tuple defining the cropping window as (ymin, ymax, xmin, xmax). Default is (70, 210, 70, 210).
+            A 4-element tuple defining the cropping window as (ymin, ymax, xmin, xmax).
+            Only square windows centred on the image diagonal, i.e.
+            ``(xmin, xmax) == (ymin, ymax)``, are currently implemented.
+            Default is (70, 210, 70, 210).
 
         Returns
         -------
         fin_image : numpy.ndarray
             Processed and cropped image array in float32 format with NaNs converted to 0.
+
+        Raises
+        ------
+        NotImplementedError
+            If ``scale_factor != 1`` or the x and y bounds differ.
         """
-        cls.scaled_image = (image[::scale_factor, ::scale_factor])[1::, 1::]
-        cropped_image = image[bounds[0]:bounds[1],bounds[0]:bounds[1]]
+        if scale_factor != 1:
+            raise NotImplementedError(
+                "process_image: downsampling is not implemented yet; scale_factor must be 1 "
+                f"(got {scale_factor})."
+            )
+        if len(bounds) != 4:
+            raise ValueError(f"process_image: bounds must be (ymin, ymax, xmin, xmax); got {bounds}.")
+        if tuple(bounds[2:4]) != tuple(bounds[0:2]):
+            raise NotImplementedError(
+                "process_image: only square crops with identical y and x bounds are implemented yet; "
+                f"got bounds={tuple(bounds)}."
+            )
+        cropped_image = image[bounds[0]:bounds[1], bounds[2]:bounds[3]]
         def safe_float32_conversion(value):
             """Convert a value to float32, printing a warning if conversion fails.
 
