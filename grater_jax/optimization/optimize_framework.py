@@ -116,11 +116,13 @@ class Optimizer:
         self.FuncModel = FuncModel
         self.PSFModel = PSFModel
         self.StellarPSFModel = StellarPSFModel
-        self.disk_params = disk_params
-        self.spf_params = spf_params
-        self.psf_params = psf_params
-        self.stellar_psf_params = stellar_psf_params
-        self.misc_params = misc_params
+        # Shallow-copy the parameter dicts so fitting never edits the caller's
+        # objects (or the read-only class defaults) in place.
+        self.disk_params = dict(disk_params) if disk_params is not None else None
+        self.spf_params = dict(spf_params) if spf_params is not None else None
+        self.psf_params = dict(psf_params) if psf_params is not None else None
+        self.stellar_psf_params = dict(stellar_psf_params) if stellar_psf_params is not None else None
+        self.misc_params = dict(misc_params) if misc_params is not None else None
         self.kwargs = kwargs
         self.name = 'test'
         self.last_fit = None
