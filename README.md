@@ -31,6 +31,12 @@ pip install --upgrade "jax[cpu]"  # or "jax[cuda]" for GPU
 
 Highly recommended to install this on a fresh environment, just to be safe.
 
+To run the test suite or the `SpeedComparision` benchmark notebook, which compare against the original `numpy` implementation in [VIP](https://github.com/vortex-exoplanet/VIP), install the `dev` extra instead (it adds `vip_hci` and `pytest`):
+
+```sh
+pip install "grater-jax[dev]"
+```
+
 ## Usage
 
 Refer to the documentation at [grater-jax.readthedocs.io](https://grater-jax.readthedocs.io/en/latest/).
