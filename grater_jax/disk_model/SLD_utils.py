@@ -445,9 +445,16 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         before constructing the spline, so ``spline(0) = 1`` by construction.
         This eliminates the degeneracy between knot scale and ``flux_scaling``.
         """
-        n_left = len(p_arr) // 2
+        n_left = cls.center_index(len(p_arr))
         all_values = jnp.concatenate([p_arr[:n_left], jnp.array([1.0]), p_arr[n_left:]])
         return InterpolatedUnivariateSpline(knots, all_values)
+
+    @staticmethod
+    def center_index(num_knots):
+        # Index of the fixed cos_phi = 0 knot in the ``num_knots + 1`` positions
+        # returned by ``get_knots`` (n_left free knots sit in front of it).
+        n = int(num_knots)
+        return n - n // 2
     
     @classmethod
     @partial(jax.jit, static_argnums=(0))

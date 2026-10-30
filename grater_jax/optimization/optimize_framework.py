@@ -735,7 +735,7 @@ class Optimizer:
 
         nk = self.spf_params['num_knots']
         knot_cos = np.array(InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params))
-        n_left = nk // 2
+        n_left = InterpolatedUnivariateSpline_SPF.center_index(nk)
         # get_knots returns num_knots + 1 positions (including the fixed center knot at
         # cos_phi = 0).  Drop that center index before evaluating HG.
         free_knot_cos = np.concatenate([knot_cos[:n_left], knot_cos[n_left + 1:]])
