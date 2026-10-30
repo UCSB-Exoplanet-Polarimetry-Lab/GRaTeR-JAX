@@ -1457,6 +1457,14 @@ class Optimizer:
 
 class OptimizeUtils:
 
+    @staticmethod
+    def _radial_distance(shape):
+        """Distance of every pixel from the image centre (``shape // 2``), in pixels."""
+        y, x = np.indices(shape)
+        y -= shape[0] // 2
+        x -= shape[1] // 2
+        return np.sqrt(x**2 + y**2)
+
     @classmethod
     def create_empirical_err_map(cls, data, annulus_width=5, mask_rad=9, outlier_pixels=None):
         """
@@ -1478,13 +1486,10 @@ class OptimizeUtils:
         noise_array : numpy.ndarray
             2D array of the same shape as `data`, representing the empirical error map.
         """
-        y,x = np.indices(data.shape)
-        y -= data.shape[0]//2
-        x -= data.shape[1]//2 
-        radii = np.sqrt(x**2 + y**2) 
+        radii = cls._radial_distance(data.shape)
         noise_array = np.zeros_like(data)
-        for i in range(0, int(np.max(radii)//annulus_width) ): 
-            indices = (radii > i*annulus_width) & (radii <= (i+1)*annulus_width) 
+        for i in range(0, int(np.max(radii)//annulus_width) ):
+            indices = (radii > i*annulus_width) & (radii <= (i+1)*annulus_width)
             noise_array[indices] = np.nanstd(data[indices])
         mask = radii <= mask_rad
         noise_array[mask] = 1e10
@@ -1583,33 +1588,29 @@ class OptimizeUtils:
     @classmethod
     def get_mask(cls, data, annulus_width=5, mask_rad=9, outlier_pixels=None):
         """
-        Generates a binary mask identifying the central masked region of an image.
+        Generates a binary mask of the pixels that `create_empirical_err_map` excludes.
 
         Parameters
         ----------
         data : numpy.ndarray
-            2D image array.
+            2D image array (only its shape is used).
         annulus_width : int, optional
-            Width of annuli used for noise estimation (not returned). Default is 5.
+            Accepted for signature compatibility with `create_empirical_err_map`; unused.
         mask_rad : int, optional
             Radius of the central region to mask out (set to True). Default is 9.
         outlier_pixels : list of tuple, optional
-            Currently unused in mask generation but included for consistency.
+            Pixel coordinates that are also masked out (set to True).
 
         Returns
         -------
         mask : numpy.ndarray
             Boolean array of same shape as input, where True indicates masked (excluded) pixels.
         """
-        y,x = np.indices(data.shape)
-        y -= data.shape[0]//2
-        x -= data.shape[1]//2 
-        radii = np.sqrt(x**2 + y**2) 
-        noise_array = np.zeros_like(data)
-        for i in range(0, int(np.max(radii)//annulus_width) ): 
-            indices = (radii > i*annulus_width) & (radii <= (i+1)*annulus_width) 
-            noise_array[indices] = np.nanstd(data[indices])
-        mask = radii <= mask_rad
+        mask = cls._radial_distance(data.shape) <= mask_rad
+
+        if outlier_pixels is not None:
+            for pixel in outlier_pixels:
+                mask[pixel[0]][pixel[1]] = True
 
         return mask
     
