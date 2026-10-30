@@ -44,9 +44,9 @@ def test_simple_vip_and_grater_jax_generate_images():
     assert vip_img.shape == (200, 200)
 
     # --- GRaTeR-JAX disk ---
-    spf_params = HenyeyGreenstein_SPF.params
+    spf_params = HenyeyGreenstein_SPF.params.copy()
     disk_params = Parameter_Index.disk_params.copy()
-    misc_params = Parameter_Index.disk_params.copy()
+    misc_params = Parameter_Index.misc_params.copy()
 
     disk_params.update({
         "sma": 60.0,                # matches density["a"]
