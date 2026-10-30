@@ -573,7 +573,7 @@ def pad_or_crop_about_pos(
             im, np.array([yg, xg]), order=order, mode=mode, cval=cval, prefilter=prefilter
         )
     else:
-        nI = np.product(im.shape[:-2])
+        nI = np.prod(im.shape[:-2])
         im_reshaped = im.reshape((nI, ny, nx))
         im_out = np.zeros((nI, ny, nx), dtype=im.dtype)
         for i in range(nI):
@@ -823,7 +823,7 @@ def rotate_about_pos(im, pos, angle, new_cent=None, cval=np.nan, order=3, mode="
             im, np.array([yg, xg]), order=order, mode=mode, cval=cval, prefilter=prefilter
         )
     else:
-        nI = np.product(im.shape[:-2])
+        nI = np.prod(im.shape[:-2])
         im_reshaped = im.reshape((nI, ny, nx))
         im_rot = np.zeros((nI, ny, nx), dtype=im.dtype)
         for i in range(nI):

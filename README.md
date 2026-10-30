@@ -17,7 +17,7 @@
 
 ## Installation
 
-To install GRaTeR-JAX and its dependencies, create a new Conda environment with Python and run:
+To install GRaTeR-JAX and its dependencies, create a new Conda environment with Python 3.10–3.13 and run:
 
 ```sh
 pip install grater-jax

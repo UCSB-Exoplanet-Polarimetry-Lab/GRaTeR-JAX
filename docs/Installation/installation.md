@@ -18,6 +18,6 @@ pip install --upgrade "jax[cpu]"   # or "jax[cuda]" for GPU support
 
 ## Compatibility
 
-GRaTeR-JAX is compatible with Python versions `>=3.9` and `<3.13`, and with GPU hardware supported by JAX. See the [JAX installation documentation](https://docs.jax.dev/en/latest/installation.html) for supported backends and platforms.
+GRaTeR-JAX is compatible with Python versions `>=3.10` and `<3.14`, and with GPU hardware supported by JAX. See the [JAX installation documentation](https://docs.jax.dev/en/latest/installation.html) for supported backends and platforms.
 
 A full list of package dependencies is available in `pyproject.toml`.
