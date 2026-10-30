@@ -441,7 +441,7 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
 
         ``p_arr`` contains ``num_knots`` free values — the knot y-values at all
         positions *except* the fixed normalization point at ``cos_phi = 0``.  A
-        value of 1.0 is inserted at the center index (``n_left = len(p_arr) // 2``)
+        value of 1.0 is inserted at the center index (``n_left = num_knots - num_knots // 2``, see ``center_index``)
         before constructing the spline, so ``spline(0) = 1`` by construction.
         This eliminates the degeneracy between knot scale and ``flux_scaling``.
         """
