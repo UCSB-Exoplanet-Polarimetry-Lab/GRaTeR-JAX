@@ -373,7 +373,8 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
         phase_fn = InterpolatedUnivariateSpline_SPF.pack_pars(
             temp_spf_params["knot_values"], knots=InterpolatedUnivariateSpline_SPF.get_knots(temp_spf_params)
         )
-        if jnp.any(phase_fn(jnp.linspace(-1, 1, 200)) < 0):
+        if jnp.any(InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
+                phase_fn, jnp.linspace(-1, 1, 200)) < 0):
             return -1e10
 
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
