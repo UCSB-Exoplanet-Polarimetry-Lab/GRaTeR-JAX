@@ -406,9 +406,22 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         number of knots
     knot_values: array
         y values of the knots
+    smoothing: float
+        strength of the optional smoothness penalty on the log phase function, in
+        chi-squared units (0 disables it, the default). When nonzero, objective_fit
+        subtracts 0.5 * smoothing * smoothness(knot_values, knots) from the
+        log-likelihood, so unit integrated curvature of log(SPF) across the knots
+        costs a chi-squared increase of ``smoothing``. The knot values stay the
+        parameters, so this acts like a smoothing spline (and as a log-prior in
+        MCMC) without changing the forward model. Values of order 0.1 to 10 are
+        the range worth scanning: use the smallest value at which the fitted
+        spline stops oscillating between neighbouring knots. The penalty favours
+        phase functions that are exponential in cos_phi, so a strongly peaked
+        Henyey-Greenstein shape pays a small, roughly constant cost.
     """
 
-    params = MappingProxyType({'backscatt_bound': -1, 'forwardscatt_bound': 1, 'num_knots': 6, 'knot_values': (1., 1., 1., 1., 1., 1.)})
+    params = MappingProxyType({'backscatt_bound': -1, 'forwardscatt_bound': 1, 'num_knots': 6,
+                               'knot_values': (1., 1., 1., 1., 1., 1.), 'smoothing': 0.})
 
     @classmethod
     @partial(jax.jit, static_argnums=(0))
@@ -455,6 +468,39 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         # returned by ``get_knots`` (n_left free knots sit in front of it).
         n = int(num_knots)
         return n - n // 2
+
+    @classmethod
+    @partial(jax.jit, static_argnums=(0))
+    def smoothness(cls, p_arr, knots):
+        """
+        Integrated squared curvature of the log phase function across the knots.
+
+        Builds the full knot-value vector the same way ``pack_pars`` does (the fixed
+        1.0 at ``center_index``), takes the log, and sums the squared second divided
+        difference over every three consecutive knots, weighted by half the span of
+        those three knots.  This approximates the integral of
+        ``(d^2 log SPF / d cos_phi^2)^2`` over the knot range, so its value depends
+        only weakly on ``num_knots`` and the knot bounds: for a Henyey-Greenstein
+        shape with g = 0.5 it grows from about 6 to 16 between 4 and 12 knots, while
+        the cost of a knot-to-knot oscillation of fixed amplitude grows as the
+        fourth power of the knot density.  Knot values are
+        floored at 1e-30 before the log so a zero knot gives a large finite penalty
+        rather than NaN.
+
+        Returns 0 for a phase function that is exponential in ``cos_phi`` (a straight
+        line in log space); any bend between neighbouring knots costs more than the
+        same bend spread over several knots.  Multiplied by ``smoothing`` in
+        ``objective_fit`` to penalise knot-to-knot oscillation.
+        """
+        n_left = cls.center_index(len(p_arr))
+        all_values = jnp.concatenate([p_arr[:n_left], jnp.array([1.0]), p_arr[n_left:]])
+        x = jnp.asarray(knots)
+        u = jnp.log(jnp.maximum(all_values, 1e-30))
+        x0, x1, x2 = x[:-2], x[1:-1], x[2:]
+        u0, u1, u2 = u[:-2], u[1:-1], u[2:]
+        d2 = 2.0 * ((u2 - u1) / (x2 - x1) - (u1 - u0) / (x1 - x0)) / (x2 - x0)
+        w = jnp.abs(x2 - x0) / 2.0
+        return jnp.sum(w * d2**2)
     
     @classmethod
     @partial(jax.jit, static_argnums=(0))

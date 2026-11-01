@@ -19,6 +19,9 @@ from grater_jax.disk_model.jax_model_wrappers import jax_model, jax_model_spline
 from grater_jax.disk_model.jax_gradient_wrappers import jax_model_grad, jax_model_spline_grad, jax_model_winnie_grad, jax_model_spline_winnie_grad, log_likelihood
 import matplotlib.pyplot as plt
 
+# d(smoothness)/d(knot_values); added to the knot gradients in objective_fit_grad
+_spline_smoothness_grad = jax.jit(jax.grad(InterpolatedUnivariateSpline_SPF.smoothness))
+
 class Parameter_Index:
     """
     Default parameter sets for disk modeling components.
@@ -369,13 +372,14 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             temp_misc_params[key] = params_fit[param_index]
         param_index += 1
 
+    smoothing = 0.
     if issubclass(FuncModel, InterpolatedUnivariateSpline_SPF):
-        phase_fn = InterpolatedUnivariateSpline_SPF.pack_pars(
-            temp_spf_params["knot_values"], knots=InterpolatedUnivariateSpline_SPF.get_knots(temp_spf_params)
-        )
+        knots = InterpolatedUnivariateSpline_SPF.get_knots(temp_spf_params)
+        phase_fn = InterpolatedUnivariateSpline_SPF.pack_pars(temp_spf_params["knot_values"], knots=knots)
         if jnp.any(InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
                 phase_fn, jnp.linspace(-1, 1, 200)) < 0):
             return -1e10
+        smoothing = float(temp_spf_params.get('smoothing', 0.))
 
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
         model_image = jax_model(
@@ -420,7 +424,11 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
             flux_scaling=temp_misc_params['flux_scaling'], knots=FuncModel.get_knots(temp_spf_params)
         )
 
-    return log_likelihood(model_image, target_image, err_map, ll_method=ll_method)
+    ll = log_likelihood(model_image, target_image, err_map, ll_method=ll_method)
+    if smoothing > 0:
+        norm = 1.0 / jnp.size(target_image) if ll_method == 'mean' else 1.0
+        ll = ll - 0.5 * smoothing * norm * FuncModel.smoothness(temp_spf_params['knot_values'], knots)
+    return ll
 
 
 def objective_grad(disk_params, spf_params, psf_params, misc_params,
@@ -633,6 +641,10 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             temp_misc_params[key] = params_fit[param_index]
         param_index += 1
 
+    smoothing = 0.
+    if issubclass(FuncModel, InterpolatedUnivariateSpline_SPF):
+        smoothing = float(temp_spf_params.get('smoothing', 0.))
+
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:
         gradients = jax_model_grad(
             DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel,
@@ -686,5 +698,11 @@ def objective_fit_grad(params_fit, fit_keys, disk_params, spf_params, psf_params
             knots=FuncModel.get_knots(temp_spf_params),
             ll_method=ll_method
         )
+
+    if smoothing > 0:
+        norm = 1.0 / jnp.size(target_image) if ll_method == 'mean' else 1.0
+        knot_grad = gradients[1] - 0.5 * smoothing * norm * _spline_smoothness_grad(
+            temp_spf_params['knot_values'], FuncModel.get_knots(temp_spf_params))
+        gradients = (gradients[0], knot_grad) + tuple(gradients[2:])
 
     return gradients
