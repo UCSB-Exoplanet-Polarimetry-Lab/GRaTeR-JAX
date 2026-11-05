@@ -78,7 +78,7 @@ def jax_model(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel, disk_
     disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
                                               disk_params[1], disk_params[2], disk_params[3],
                                               nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
+                                              omega = disk_params[14], pxInArcsec=pxInArcsec)
 
     yc, xc = ny, nx
     xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
@@ -174,7 +174,7 @@ def jax_model_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, StellarPSFMod
     disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
                                               disk_params[1], disk_params[2], disk_params[3],
                                               nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
+                                              omega = disk_params[14], pxInArcsec=pxInArcsec)
 
     yc, xc = ny, nx
     xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
@@ -273,7 +273,7 @@ def jax_model_spline(DiskModel, DistrModel, FuncModel, PSFModel, StellarPSFModel
     disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
                                               disk_params[1], disk_params[2], disk_params[3],
                                               nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
+                                              omega = disk_params[14], pxInArcsec=pxInArcsec)
 
     yc, xc = ny, nx
     xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)
@@ -375,7 +375,7 @@ def jax_model_spline_winnie(DiskModel, DistrModel, FuncModel, winnie_psf, Stella
     disk_params_jax = DiskModel.init(distr_params, disk_params[10], disk_params[11],
                                               disk_params[1], disk_params[2], disk_params[3],
                                               nx=nx, ny=ny, distance = distance,
-                                              omega = disk_params[15], pxInArcsec=pxInArcsec)
+                                              omega = disk_params[14], pxInArcsec=pxInArcsec)
 
     yc, xc = ny, nx
     xc = jnp.where(nx%2==1, nx/2-0.5, nx/2).astype(int)

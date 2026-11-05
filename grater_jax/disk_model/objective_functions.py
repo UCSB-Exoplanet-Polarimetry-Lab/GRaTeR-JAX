@@ -13,6 +13,7 @@ log-likelihood computation, and gradient calculation.
 import jax
 import jax.numpy as jnp
 import numpy as np
+from types import MappingProxyType
 from grater_jax.disk_model.SLD_utils import InterpolatedUnivariateSpline_SPF, Winnie_PSF
 from grater_jax.disk_model.jax_model_wrappers import jax_model, jax_model_spline, jax_model_winnie, jax_model_spline_winnie
 from grater_jax.disk_model.jax_gradient_wrappers import jax_model_grad, jax_model_spline_grad, jax_model_winnie_grad, jax_model_spline_winnie_grad, log_likelihood
@@ -78,10 +79,11 @@ class Parameter_Index:
     model classes (e.g., `InterpolatedUnivariateSpline_SPF`, `Winnie_PSF`).
     """
     
-    disk_params = {'accuracy': 5.e-3, 'alpha_in': 5, 'alpha_out': -5, 'sma': 50, 'e': 0., 'ksi0': 3., 'gamma': 2., 'beta': 1., 'rmin': 0.,
-                'dens_at_r0': 1., 'inclination': 0, 'position_angle': 0, 'x_center': 70., 'y_center': 70., 'omega': 0.,}
+    # Read-only defaults: take a ``.copy()`` before editing values.
+    disk_params = MappingProxyType({'accuracy': 5.e-3, 'alpha_in': 5, 'alpha_out': -5, 'sma': 50, 'e': 0., 'ksi0': 3., 'gamma': 2., 'beta': 1., 'rmin': 0.,
+                'dens_at_r0': 1., 'inclination': 0, 'position_angle': 0, 'x_center': 70., 'y_center': 70., 'omega': 0.,})
 
-    misc_params = {'distance': 50., 'pxInArcsec': 0.01414, 'nx': 140, 'ny': 140, 'halfNbSlices': 25, 'flux_scaling': 1e6}
+    misc_params = MappingProxyType({'distance': 50., 'pxInArcsec': 0.01414, 'nx': 140, 'ny': 140, 'halfNbSlices': 25, 'flux_scaling': 1e6})
 
 
 def pack_pars(p_dict, orig_dict):
@@ -371,7 +373,8 @@ def objective_fit(params_fit, fit_keys, disk_params, spf_params, psf_params, mis
         phase_fn = InterpolatedUnivariateSpline_SPF.pack_pars(
             temp_spf_params["knot_values"], knots=InterpolatedUnivariateSpline_SPF.get_knots(temp_spf_params)
         )
-        if jnp.any(phase_fn(jnp.linspace(-1, 1, 200)) < 0):
+        if jnp.any(InterpolatedUnivariateSpline_SPF.compute_phase_function_from_cosphi(
+                phase_fn, jnp.linspace(-1, 1, 200)) < 0):
             return -1e10
 
     if not(issubclass(FuncModel, InterpolatedUnivariateSpline_SPF)) and PSFModel != Winnie_PSF:

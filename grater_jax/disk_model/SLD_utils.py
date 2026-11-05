@@ -24,6 +24,7 @@ import jax.numpy as jnp
 from jax import vmap
 import numpy as np
 from functools import partial
+from types import MappingProxyType
 import matplotlib.pyplot as plt
 from grater_jax.disk_model.interpolated_univariate_spline import InterpolatedUnivariateSpline
 from astropy.io import fits
@@ -35,7 +36,10 @@ class Jax_class:
     """Base class for custom JAX-compatible objects that can be compressed into
     and uncompressed from JAX arrays."""
 
-    params = {}
+    # Default parameter values. Wrapped in a read-only mapping so that the shared
+    # defaults cannot be edited by accident: use ``MyModel.params.copy()`` to get
+    # a plain dict you can modify.
+    params = MappingProxyType({})
 
     @classmethod
     @partial(jax.jit, static_argnums=(0,))
@@ -89,9 +93,9 @@ class Jax_class:
 class DustEllipticalDistribution2PowerLaws(Jax_class):
     """Two-power-law elliptical dust density distribution model."""
 
-    params = {'alpha_in': 5., 'alpha_out': -5., 'sma': 60., 'e': 0., 'ksi0': 1.,'gamma': 2., 'beta': 1.,
+    params = MappingProxyType({'alpha_in': 5., 'alpha_out': -5., 'sma': 60., 'e': 0., 'ksi0': 1.,'gamma': 2., 'beta': 1.,
                         'rmin': 0., 'dens_at_r0': 1., 'accuracy': 5.e-3, 'zmax': 0., "p": 0., "rmax": 0.,
-                        'pmin': 0., "rpeak": 0., "rpeak_surface_density": 0., "itiltthreshold": 0.}
+                        'pmin': 0., "rpeak": 0., "rpeak_surface_density": 0., "itiltthreshold": 0.})
 
     @classmethod
     @partial(jax.jit, static_argnums=(0,))
@@ -209,7 +213,7 @@ class HenyeyGreenstein_SPF(Jax_class):
     Greenstein function.
     """
 
-    params = {'g': 0.3}
+    params = MappingProxyType({'g': 0.3})
 
     @classmethod
     @partial(jax.jit, static_argnums=(0,))
@@ -271,7 +275,7 @@ class DoubleHenyeyGreenstein_SPF(Jax_class):
         weighting of the first Henyey Greenstein component
     """
 
-    params = {'g1': 0.5, 'g2': -0.3, 'weight': 0.7}
+    params = MappingProxyType({'g1': 0.5, 'g2': -0.3, 'weight': 0.7})
 
     @classmethod
     @partial(jax.jit, static_argnums=(0,))
@@ -404,7 +408,7 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
         y values of the knots
     """
 
-    params = {'backscatt_bound': -1, 'forwardscatt_bound': 1, 'num_knots': 6, 'knot_values': (1., 1., 1., 1., 1., 1.)}
+    params = MappingProxyType({'backscatt_bound': -1, 'forwardscatt_bound': 1, 'num_knots': 6, 'knot_values': (1., 1., 1., 1., 1., 1.)})
 
     @classmethod
     @partial(jax.jit, static_argnums=(0))
@@ -437,13 +441,20 @@ class InterpolatedUnivariateSpline_SPF(Jax_class):
 
         ``p_arr`` contains ``num_knots`` free values — the knot y-values at all
         positions *except* the fixed normalization point at ``cos_phi = 0``.  A
-        value of 1.0 is inserted at the center index (``n_left = len(p_arr) // 2``)
+        value of 1.0 is inserted at the center index (``n_left = num_knots - num_knots // 2``, see ``center_index``)
         before constructing the spline, so ``spline(0) = 1`` by construction.
         This eliminates the degeneracy between knot scale and ``flux_scaling``.
         """
-        n_left = len(p_arr) // 2
+        n_left = cls.center_index(len(p_arr))
         all_values = jnp.concatenate([p_arr[:n_left], jnp.array([1.0]), p_arr[n_left:]])
         return InterpolatedUnivariateSpline(knots, all_values)
+
+    @staticmethod
+    def center_index(num_knots):
+        # Index of the fixed cos_phi = 0 knot in the ``num_knots + 1`` positions
+        # returned by ``get_knots`` (n_left free knots sit in front of it).
+        n = int(num_knots)
+        return n - n // 2
     
     @classmethod
     @partial(jax.jit, static_argnums=(0))
@@ -526,7 +537,7 @@ class GAUSSIAN_PSF(Jax_class):
         Amplitude of the PSF.
     """
 
-    params = {'FWHM': 3., 'xo': 0., 'yo': 0., 'theta': 0., 'offset': 0., 'amplitude': 1.}
+    params = MappingProxyType({'FWHM': 3., 'xo': 0., 'yo': 0., 'theta': 0., 'offset': 0., 'amplitude': 1.})
 
     #define model function and pass independant variables x and y as a list
     @classmethod
@@ -573,7 +584,7 @@ class GAUSSIAN_PSF(Jax_class):
 class EMP_PSF(Jax_class):
     """Empirical point spread function (PSF) model."""
 
-    params = {'scale_factor': 1.0, 'offset': 1.0}
+    params = MappingProxyType({'scale_factor': 1.0, 'offset': 1.0})
 
     # Modify this to change the image the empirical psf uses
     img = None
@@ -676,7 +687,7 @@ class StellarPSFReference:
 class LinearStellarPSF(Jax_class):
     """Stellar PSF model as a linear combination of reference images."""
 
-    params = {'stellar_weights': None}  # Linear weights for each of the reference images.
+    params = MappingProxyType({'stellar_weights': None})  # Linear weights for each of the reference images.
 
     @classmethod
     @partial(jax.jit, static_argnames=['cls'])
@@ -728,7 +739,7 @@ class LinearStellarPSF(Jax_class):
 class PositionalStellarPSF(Jax_class):
     """Stellar PSF model with position-dependent reference image weights."""
 
-    params = {'stellar_weights': None, 'stellar_xs': None, 'stellar_ys': None}
+    params = MappingProxyType({'stellar_weights': None, 'stellar_xs': None, 'stellar_ys': None})
     # Stellar weights : Linear weights for each of the reference images
     # Stellar xs and Stellar ys : X and Y positions for each of the reference images
 

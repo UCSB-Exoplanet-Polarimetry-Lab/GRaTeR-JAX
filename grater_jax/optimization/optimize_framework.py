@@ -116,11 +116,13 @@ class Optimizer:
         self.FuncModel = FuncModel
         self.PSFModel = PSFModel
         self.StellarPSFModel = StellarPSFModel
-        self.disk_params = disk_params
-        self.spf_params = spf_params
-        self.psf_params = psf_params
-        self.stellar_psf_params = stellar_psf_params
-        self.misc_params = misc_params
+        # Shallow-copy the parameter dicts so fitting never edits the caller's
+        # objects (or the read-only class defaults) in place.
+        self.disk_params = dict(disk_params) if disk_params is not None else None
+        self.spf_params = dict(spf_params) if spf_params is not None else None
+        self.psf_params = dict(psf_params) if psf_params is not None else None
+        self.stellar_psf_params = dict(stellar_psf_params) if stellar_psf_params is not None else None
+        self.misc_params = dict(misc_params) if misc_params is not None else None
         self.kwargs = kwargs
         self.name = 'test'
         self.last_fit = None
@@ -523,7 +525,7 @@ class Optimizer:
                     if logscales[i]:
                         bounds.append((np.log(l+1e-14), np.log(h)))
                     else:
-                        bounds.append((low[0], high[0]))
+                        bounds.append((l, h))
             else:
                 if logscales[i]:
                     bounds.append((np.log(low+1e-14), np.log(high)))
@@ -733,7 +735,7 @@ class Optimizer:
 
         nk = self.spf_params['num_knots']
         knot_cos = np.array(InterpolatedUnivariateSpline_SPF.get_knots(self.spf_params))
-        n_left = nk // 2
+        n_left = InterpolatedUnivariateSpline_SPF.center_index(nk)
         # get_knots returns num_knots + 1 positions (including the fixed center knot at
         # cos_phi = 0).  Drop that center index before evaluating HG.
         free_knot_cos = np.concatenate([knot_cos[:n_left], knot_cos[n_left + 1:]])
@@ -1457,6 +1459,14 @@ class Optimizer:
 
 class OptimizeUtils:
 
+    @staticmethod
+    def _radial_distance(shape):
+        """Distance of every pixel from the image centre (``shape // 2``), in pixels."""
+        y, x = np.indices(shape)
+        y -= shape[0] // 2
+        x -= shape[1] // 2
+        return np.sqrt(x**2 + y**2)
+
     @classmethod
     def create_empirical_err_map(cls, data, annulus_width=5, mask_rad=9, outlier_pixels=None):
         """
@@ -1478,13 +1488,10 @@ class OptimizeUtils:
         noise_array : numpy.ndarray
             2D array of the same shape as `data`, representing the empirical error map.
         """
-        y,x = np.indices(data.shape)
-        y -= data.shape[0]//2
-        x -= data.shape[1]//2 
-        radii = np.sqrt(x**2 + y**2) 
+        radii = cls._radial_distance(data.shape)
         noise_array = np.zeros_like(data)
-        for i in range(0, int(np.max(radii)//annulus_width) ): 
-            indices = (radii > i*annulus_width) & (radii <= (i+1)*annulus_width) 
+        for i in range(0, int(np.max(radii)//annulus_width) ):
+            indices = (radii > i*annulus_width) & (radii <= (i+1)*annulus_width)
             noise_array[indices] = np.nanstd(data[indices])
         mask = radii <= mask_rad
         noise_array[mask] = 1e10
@@ -1521,24 +1528,44 @@ class OptimizeUtils:
     @classmethod
     def process_image(cls, image, scale_factor=1, bounds=(70, 210, 70, 210)):
         """
-        Crops, scales, and safely converts an image to float32.
+        Crops an image to a square window and safely converts it to float32.
 
         Parameters
         ----------
         image : numpy.ndarray
             Input image array.
         scale_factor : int, optional
-            Factor to downsample the image spatially. Default is 1 (no scaling).
+            Reserved for spatial downsampling. Only the default of 1 (no scaling)
+            is currently implemented.
         bounds : tuple of int, optional
-            A 4-element tuple defining the cropping window as (ymin, ymax, xmin, xmax). Default is (70, 210, 70, 210).
+            A 4-element tuple defining the cropping window as (ymin, ymax, xmin, xmax).
+            Only square windows centred on the image diagonal, i.e.
+            ``(xmin, xmax) == (ymin, ymax)``, are currently implemented.
+            Default is (70, 210, 70, 210).
 
         Returns
         -------
         fin_image : numpy.ndarray
             Processed and cropped image array in float32 format with NaNs converted to 0.
+
+        Raises
+        ------
+        NotImplementedError
+            If ``scale_factor != 1`` or the x and y bounds differ.
         """
-        cls.scaled_image = (image[::scale_factor, ::scale_factor])[1::, 1::]
-        cropped_image = image[bounds[0]:bounds[1],bounds[0]:bounds[1]]
+        if scale_factor != 1:
+            raise NotImplementedError(
+                "process_image: downsampling is not implemented yet; scale_factor must be 1 "
+                f"(got {scale_factor})."
+            )
+        if len(bounds) != 4:
+            raise ValueError(f"process_image: bounds must be (ymin, ymax, xmin, xmax); got {bounds}.")
+        if tuple(bounds[2:4]) != tuple(bounds[0:2]):
+            raise NotImplementedError(
+                "process_image: only square crops with identical y and x bounds are implemented yet; "
+                f"got bounds={tuple(bounds)}."
+            )
+        cropped_image = image[bounds[0]:bounds[1], bounds[2]:bounds[3]]
         def safe_float32_conversion(value):
             """Convert a value to float32, printing a warning if conversion fails.
 
@@ -1563,33 +1590,29 @@ class OptimizeUtils:
     @classmethod
     def get_mask(cls, data, annulus_width=5, mask_rad=9, outlier_pixels=None):
         """
-        Generates a binary mask identifying the central masked region of an image.
+        Generates a binary mask of the pixels that `create_empirical_err_map` excludes.
 
         Parameters
         ----------
         data : numpy.ndarray
-            2D image array.
+            2D image array (only its shape is used).
         annulus_width : int, optional
-            Width of annuli used for noise estimation (not returned). Default is 5.
+            Accepted for signature compatibility with `create_empirical_err_map`; unused.
         mask_rad : int, optional
             Radius of the central region to mask out (set to True). Default is 9.
         outlier_pixels : list of tuple, optional
-            Currently unused in mask generation but included for consistency.
+            Pixel coordinates that are also masked out (set to True).
 
         Returns
         -------
         mask : numpy.ndarray
             Boolean array of same shape as input, where True indicates masked (excluded) pixels.
         """
-        y,x = np.indices(data.shape)
-        y -= data.shape[0]//2
-        x -= data.shape[1]//2 
-        radii = np.sqrt(x**2 + y**2) 
-        noise_array = np.zeros_like(data)
-        for i in range(0, int(np.max(radii)//annulus_width) ): 
-            indices = (radii > i*annulus_width) & (radii <= (i+1)*annulus_width) 
-            noise_array[indices] = np.nanstd(data[indices])
-        mask = radii <= mask_rad
+        mask = cls._radial_distance(data.shape) <= mask_rad
+
+        if outlier_pixels is not None:
+            for pixel in outlier_pixels:
+                mask[pixel[0]][pixel[1]] = True
 
         return mask
     

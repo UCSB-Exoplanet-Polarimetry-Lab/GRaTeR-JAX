@@ -17,7 +17,7 @@
 
 ## Installation
 
-To install GRaTeR-JAX and its dependencies, create a new Conda environment with Python and run:
+To install GRaTeR-JAX and its dependencies, create a new Conda environment with Python 3.10–3.13 and run:
 
 ```sh
 pip install grater-jax
@@ -30,6 +30,12 @@ pip install --upgrade "jax[cpu]"  # or "jax[cuda]" for GPU
 ```
 
 Highly recommended to install this on a fresh environment, just to be safe.
+
+To run the test suite or the `SpeedComparision` benchmark notebook, which compare against the original `numpy` implementation in [VIP](https://github.com/vortex-exoplanet/VIP), install the `dev` extra instead (it adds `vip_hci` and `pytest`):
+
+```sh
+pip install "grater-jax[dev]"
+```
 
 ## Usage
 

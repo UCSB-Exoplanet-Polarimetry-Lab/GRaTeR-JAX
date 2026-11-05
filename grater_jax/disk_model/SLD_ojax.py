@@ -219,7 +219,7 @@ class ScatteredLightDisk(Jax_class):
             (x_map**2+y_map**2)
         # squared minimum l value to reach the inner disk radius, in AU^2:
         lmin2 = (x_map**2+y_map**2)-disk["rmin"]**2
-        validPixel_map = (lmax2 > 0.) * (lmin2 > 0.)
+        validPixel_map = (lmax2 > 0.) * (lmin2 > 1e-6 * disk["rmin"]**2)
         lwidth = 100.  # control the distribution of distances along l
         nbSlices = 2*halfNbSlices-1
         # total number of distances
